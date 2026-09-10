@@ -1,0 +1,17 @@
+{
+  "id": "com.muara.iptv",
+  "version": "1.0.5",
+  "vendor": "Muara",
+  "type": "web",
+  "main": "index.html",
+  "title": "Arafa's IPTV",
+  "icon": "icon.png",
+  "largeIcon": "largeIcon.png",
+  "bgColor": "#141414",
+  "iconColor": "#141414",
+  "disableBackHistoryAPI": true,
+  "supportPortraitMode": false,
+  "requiredPermissions": [
+    "time.query"
+  ]
+}

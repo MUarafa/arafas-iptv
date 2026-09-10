@@ -1,0 +1,13 @@
+# The real provider account (url / username / password). Never commit this.
+/secrets/
+
+# The untouched copy pulled off the TV - it still carries the account defaults.
+/original-as-pulled/
+
+# Build output
+*.ipk
+
+# OS noise
+Thumbs.db
+desktop.ini
+.DS_Store
