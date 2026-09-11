@@ -1,9 +1,13 @@
 (() => {
   var e = Object.defineProperty,
     t = (t, n) => {
-      for (var i in n) e(t, i, { get: n[i], enumerable: !0 });
+      for (var i in n)
+        e(t, i, {
+          get: n[i],
+          enumerable: !0,
+        });
     },
-    n = (e, t, n) =>
+    runAsync = (e, t, n) =>
       new Promise((i, r) => {
         var s = (e) => {
             try {
@@ -22,7 +26,7 @@
           l = (e) => (e.done ? i(e.value) : Promise.resolve(e.value).then(s, a));
         l((n = n.apply(e, t)).next());
       });
-  function i(e, t, n) {
+  function createElement(e, t, n) {
     let i = document.createElement(e);
     if (t)
       for (let e of Object.keys(t)) {
@@ -53,7 +57,7 @@
       i
     );
   }
-  function r(e) {
+  function clearChildren(e) {
     for (; e.firstChild;) e.removeChild(e.firstChild);
     return e;
   }
@@ -106,10 +110,16 @@
           Array.prototype.map.call(e, function (e) {
             return Promise.resolve(e).then(
               function (e) {
-                return { status: "fulfilled", value: e };
+                return {
+                  status: "fulfilled",
+                  value: e,
+                };
               },
               function (e) {
-                return { status: "rejected", reason: e };
+                return {
+                  status: "rejected",
+                  reason: e,
+                };
               },
             );
           }),
@@ -145,23 +155,23 @@
       }));
   var l = {};
   t(l, {
-    back: () => M,
+    back: () => goBack,
     canGoBack: () => F,
-    current: () => I,
-    go: () => A,
+    current: () => currentRoute,
+    go: () => navigateRoot,
     handleKey: () => q,
-    init: () => L,
-    push: () => E,
-    register: () => T,
-    replace: () => P,
+    init: () => setRouteRoot,
+    push: () => pushRoute,
+    register: () => registerRoute,
+    replace: () => replaceRoute,
     view: () => D,
   });
   var o = ".focusable:not(.disabled):not([hidden])",
-    u = null,
+    focusedEl = null,
     c = Object.create(null),
     d = !0;
-  function m() {
-    return u;
+  function focusedElement() {
+    return focusedEl;
   }
   function h(e) {
     if (null === e.offsetParent && "fixed" !== getComputedStyle(e).position) return !1;
@@ -172,7 +182,10 @@
     return s(o, e || document.querySelector("[data-focus-trap]") || document).filter(h);
   }
   function p(e) {
-    return { x: e.left + e.width / 2, y: e.top + e.height / 2 };
+    return {
+      x: e.left + e.width / 2,
+      y: e.top + e.height / 2,
+    };
   }
   function g(e, t, n) {
     let i,
@@ -189,7 +202,7 @@
       i < -2 ? null : Math.max(i, 0) + 4 * r
     );
   }
-  function v(e, t) {
+  function focusElement(e, t) {
     if (!e) return !1;
     let n =
       t && t.exact
@@ -199,26 +212,37 @@
             if (!t) return e;
             let n = t.getAttribute("data-focus-memory"),
               i = c[n];
-            return (u && t.contains(u)) || !i || !t.contains(i) || !h(i) ? e : i;
+            return (focusedEl && t.contains(focusedEl)) || !i || !t.contains(i) || !h(i) ? e : i;
           })(e);
     return (
       (d = !(!t || !t.provisional)),
-      n === u ||
-        (u && (u.classList.remove("focused"), u.removeAttribute("data-focused")),
-        (u = n).classList.add("focused"),
-        u.setAttribute("data-focused", ""),
+      n === focusedEl ||
+        (focusedEl &&
+          (focusedEl.classList.remove("focused"), focusedEl.removeAttribute("data-focused")),
+        (focusedEl = n).classList.add("focused"),
+        focusedEl.setAttribute("data-focused", ""),
         (function (e) {
           let t = e.closest("[data-focus-memory]");
           t && (c[t.getAttribute("data-focus-memory")] = e);
-        })(u),
-        u.dispatchEvent(new CustomEvent("focus-enter", { bubbles: !0 })),
-        document.dispatchEvent(new CustomEvent("focus-moved", { detail: { node: u } }))),
+        })(focusedEl),
+        focusedEl.dispatchEvent(
+          new CustomEvent("focus-enter", {
+            bubbles: !0,
+          }),
+        ),
+        document.dispatchEvent(
+          new CustomEvent("focus-moved", {
+            detail: {
+              node: focusedEl,
+            },
+          }),
+        )),
       !0
     );
   }
-  function y(e) {
+  function moveFocus(e) {
     let t = (function (e, t) {
-      let n = t || u;
+      let n = t || focusedEl;
       if (!n) return f()[0] || null;
       let i = n.getBoundingClientRect(),
         r = (function (e, t) {
@@ -236,62 +260,84 @@
       return a;
     })(e);
     return t
-      ? v(t)
-      : (u && u.dispatchEvent(new CustomEvent("focus-edge", { bubbles: !0, detail: { dir: e } })),
+      ? focusElement(t)
+      : (focusedEl &&
+          focusedEl.dispatchEvent(
+            new CustomEvent("focus-edge", {
+              bubbles: !0,
+              detail: {
+                dir: e,
+              },
+            }),
+          ),
         !1);
   }
-  function b(e) {
-    (u && !document.contains(u) && (u.classList.remove("focused"), (u = null)),
-      u || v(e || f()[0], { provisional: !0 }));
+  function ensureFocus(e) {
+    (focusedEl &&
+      !document.contains(focusedEl) &&
+      (focusedEl.classList.remove("focused"), (focusedEl = null)),
+      focusedEl ||
+        focusElement(e || f()[0], {
+          provisional: !0,
+        }));
   }
-  function w(e, t) {
-    return !(!t || !e || (u && e.contains(u)) || !d) && v(t);
+  function focusInto(e, t) {
+    return !(!t || !e || (focusedEl && e.contains(focusedEl)) || !d) && focusElement(t);
   }
-  var x = Object.create(null),
-    k = [],
-    C = null,
-    S = null,
-    _ = null;
-  function T(e, t) {
-    x[e] = t;
+  var routeTable = Object.create(null),
+    routeHistory = [],
+    routeRoot = null,
+    activeScreen = null,
+    activeRouteName = null;
+  function registerRoute(e, t) {
+    routeTable[e] = t;
   }
-  function L(e) {
-    C = e;
+  function setRouteRoot(e) {
+    routeRoot = e;
   }
-  function I() {
-    return _;
+  function currentRoute() {
+    return activeRouteName;
   }
-  function N(e, t) {
-    let n = x[e];
+  function renderRoute(e, t) {
+    let n = routeTable[e];
     if (!n) throw new Error("Unknown view: " + e);
-    if (S && S.unmount)
+    if (activeScreen && activeScreen.unmount)
       try {
-        S.unmount();
+        activeScreen.unmount();
       } catch (e) {}
-    (r(C), (_ = e), (S = n(t || {})).mount(C), b(S.initialFocus ? S.initialFocus() : null));
+    (clearChildren(routeRoot),
+      (activeRouteName = e),
+      (activeScreen = n(t || {})).mount(routeRoot),
+      ensureFocus(activeScreen.initialFocus ? activeScreen.initialFocus() : null));
   }
-  function A(e, t) {
-    ((k.length = 0), N(e, t));
+  function navigateRoot(e, t) {
+    ((routeHistory.length = 0), renderRoute(e, t));
   }
-  function E(e, t) {
-    (_ && k.push({ name: _, params: O }), (O = t), N(e, t));
+  function pushRoute(e, t) {
+    (activeRouteName &&
+      routeHistory.push({
+        name: activeRouteName,
+        params: activeRouteParams,
+      }),
+      (activeRouteParams = t),
+      renderRoute(e, t));
   }
-  var O = null;
-  function P(e, t) {
-    ((O = t), N(e, t));
+  var activeRouteParams = null;
+  function replaceRoute(e, t) {
+    ((activeRouteParams = t), renderRoute(e, t));
   }
-  function M() {
-    let e = k.pop();
-    return !!e && ((O = e.params), N(e.name, e.params), !0);
+  function goBack() {
+    let e = routeHistory.pop();
+    return !!e && ((activeRouteParams = e.params), renderRoute(e.name, e.params), !0);
   }
   function F() {
-    return k.length > 0;
+    return routeHistory.length > 0;
   }
   function q(e) {
-    return !(!S || !S.onKey) && S.onKey(e);
+    return !(!activeScreen || !activeScreen.onKey) && activeScreen.onKey(e);
   }
   function D() {
-    return S;
+    return activeScreen;
   }
   var j = {};
   t(j, {
@@ -309,12 +355,16 @@
     vodCategories: () => ve,
     vodStreams: () => Ce,
   });
-  var U = { url: "", username: "", password: "" },
+  var U = {
+      url: "",
+      username: "",
+      password: "",
+    },
     R = "iptv:credentials",
     K = "iptv:source",
     z = null,
     B = null;
-  function V() {
+  function sourceKind() {
     if (B) return B;
     try {
       B = localStorage.getItem(K) || "xtream";
@@ -350,7 +400,7 @@
       heroTeaserSound: !0,
     },
     G = null;
-  function Z() {
+  function settings() {
     if (G) return G;
     G = Object.assign({}, X);
     try {
@@ -359,8 +409,8 @@
     } catch (e) {}
     return G;
   }
-  function $(e) {
-    let t = Object.assign(Z(), e);
+  function saveSettings(e) {
+    let t = Object.assign(settings(), e);
     G = t;
     try {
       localStorage.setItem(H, JSON.stringify(t));
@@ -373,12 +423,15 @@
     te = 216e5,
     ne = 6048e5,
     ie = 3e5;
-  function re() {
+  function now() {
     return Date.now();
   }
   function se(e, t, n) {
     let i,
-      r = { value: t, expires: re() + (n || ie) };
+      r = {
+        value: t,
+        expires: now() + (n || ie),
+      };
     Y.set(e, r);
     try {
       i = JSON.stringify(r);
@@ -409,7 +462,10 @@
             try {
               i = (JSON.parse(localStorage.getItem(n)) || {}).expires || 0;
             } catch (e) {}
-            t.push({ key: n, expires: i });
+            t.push({
+              key: n,
+              expires: i,
+            });
           }
           t.sort((e, t) => e.expires - t.expires);
           for (let n of t.slice(0, e))
@@ -435,13 +491,13 @@
     } catch (e) {}
   }
   var oe = new Map();
-  function ue(e, t, n, i) {
+  function cached(e, t, n, i) {
     let r = (function (e) {
       let t,
         n,
         i = Y.get(e);
       if (i) {
-        if (i.expires > re()) return i.value;
+        if (i.expires > now()) return i.value;
         Y.delete(e);
       }
       try {
@@ -458,7 +514,7 @@
         } catch (e) {}
         return null;
       }
-      if (!n || n.expires <= re()) {
+      if (!n || n.expires <= now()) {
         try {
           localStorage.removeItem(Q + e);
         } catch (e) {}
@@ -473,7 +529,10 @@
         (n) => (
           i && i.memoryOnly
             ? (function (e, t, n) {
-                Y.set(e, { value: t, expires: re() + (n || te) });
+                Y.set(e, {
+                  value: t,
+                  expires: now() + (n || te),
+                });
               })(e, n, t)
             : se(e, n, t),
           oe.delete(e),
@@ -485,15 +544,15 @@
       });
     return (oe.set(e, s), s);
   }
-  function ce() {
+  function portalBase() {
     return J().url.replace(/\/+$/, "");
   }
   function de() {
     let e = J();
     return encodeURIComponent(e.username) + "/" + encodeURIComponent(e.password);
   }
-  function me(e, t) {
-    return n(this, null, function* () {
+  function playerApi(e, t) {
+    return runAsync(this, null, function* () {
       let n = new AbortController(),
         i = setTimeout(() => n.abort(), 2e4);
       try {
@@ -508,9 +567,11 @@
               t)
             )
               for (let e of Object.keys(t)) void 0 !== t[e] && null !== t[e] && i.set(e, t[e]);
-            return ce() + "/player_api.php?" + i.toString();
+            return portalBase() + "/player_api.php?" + i.toString();
           })(e, t),
-          { signal: n.signal },
+          {
+            signal: n.signal,
+          },
         );
         if (!r.ok) throw new Error("HTTP " + r.status + " for " + (e || "auth"));
         let s = yield r.text();
@@ -526,12 +587,12 @@
       }
     });
   }
-  function he(e) {
+  function asArray(e) {
     return Array.isArray(e) ? e : [];
   }
   function fe() {
-    return n(this, null, function* () {
-      let e = yield me(null),
+    return runAsync(this, null, function* () {
+      let e = yield playerApi(null),
         t = e && e.user_info;
       if (!t || "0" === String(t.auth) || !t.status) throw new Error("Login failed");
       if ("active" !== String(t.status).toLowerCase()) throw new Error("Account is " + t.status);
@@ -540,15 +601,15 @@
         expiresAt: t.exp_date ? 1e3 * Number(t.exp_date) : null,
         maxConnections: Number(t.max_connections) || 1,
         activeConnections: Number(t.active_cons) || 0,
-        allowedFormats: he(t.allowed_output_formats),
+        allowedFormats: asArray(t.allowed_output_formats),
         trial: "1" === String(t.is_trial),
       };
     });
   }
   function pe(e, t) {
-    return ue("cats:" + e, ee, () =>
-      n(null, null, function* () {
-        return he(yield me(t)).map((t) => ({
+    return cached("cats:" + e, ee, () =>
+      runAsync(null, null, function* () {
+        return asArray(yield playerApi(t)).map((t) => ({
           id: String(t.category_id),
           name: String(t.category_name || "").trim(),
           kind: e,
@@ -602,42 +663,62 @@
     };
   }
   function ke(e) {
-    return ue(
+    return cached(
       "live:" + e,
       te,
       () =>
-        n(null, null, function* () {
-          return he(yield me("get_live_streams", { category_id: e })).map(be);
+        runAsync(null, null, function* () {
+          return asArray(
+            yield playerApi("get_live_streams", {
+              category_id: e,
+            }),
+          ).map(be);
         }),
-      { memoryOnly: !0 },
+      {
+        memoryOnly: !0,
+      },
     );
   }
   function Ce(e) {
-    return ue(
+    return cached(
       "vod:" + e,
       te,
       () =>
-        n(null, null, function* () {
-          return he(yield me("get_vod_streams", { category_id: e })).map(we);
+        runAsync(null, null, function* () {
+          return asArray(
+            yield playerApi("get_vod_streams", {
+              category_id: e,
+            }),
+          ).map(we);
         }),
-      { memoryOnly: !0 },
+      {
+        memoryOnly: !0,
+      },
     );
   }
   function Se(e) {
-    return ue(
+    return cached(
       "series:" + e,
       te,
       () =>
-        n(null, null, function* () {
-          return he(yield me("get_series", { category_id: e })).map(xe);
+        runAsync(null, null, function* () {
+          return asArray(
+            yield playerApi("get_series", {
+              category_id: e,
+            }),
+          ).map(xe);
         }),
-      { memoryOnly: !0 },
+      {
+        memoryOnly: !0,
+      },
     );
   }
   function _e(e) {
-    return ue("movieinfo:" + e, ne, () =>
-      n(null, null, function* () {
-        let t = yield me("get_vod_info", { vod_id: e }),
+    return cached("movieinfo:" + e, ne, () =>
+      runAsync(null, null, function* () {
+        let t = yield playerApi("get_vod_info", {
+            vod_id: e,
+          }),
           n = (t && t.info) || {},
           i = (t && t.movie_data) || {};
         return {
@@ -650,7 +731,7 @@
           rating: n.rating ? Number(n.rating) : null,
           durationSecs: n.duration_secs ? Number(n.duration_secs) : null,
           poster: n.movie_image || n.cover_big || null,
-          backdrops: he(n.backdrop_path),
+          backdrops: asArray(n.backdrop_path),
           youtubeTrailer: n.youtube_trailer || null,
           ext: i.container_extension || "mp4",
           streamId: String(i.stream_id || e),
@@ -659,19 +740,21 @@
     );
   }
   function Te(e) {
-    return ue(
+    return cached(
       "seriesinfo:" + e,
       ne,
       () =>
-        n(null, null, function* () {
-          let t = yield me("get_series_info", { series_id: e }),
+        runAsync(null, null, function* () {
+          let t = yield playerApi("get_series_info", {
+              series_id: e,
+            }),
             n = (t && t.info) || {},
             i = (t && t.episodes) || {},
             r = Object.keys(i)
               .sort((e, t) => Number(e) - Number(t))
               .map((e) => ({
                 number: Number(e),
-                episodes: he(i[e]).map((t) => ({
+                episodes: asArray(i[e]).map((t) => ({
                   id: String(t.id),
                   title: String(t.title || "").trim(),
                   episodeNumber: Number(t.episode_num) || 0,
@@ -692,21 +775,26 @@
             releaseDate: n.releaseDate || n.releasedate || "",
             rating: n.rating ? Number(n.rating) : null,
             poster: n.cover || null,
-            backdrops: he(n.backdrop_path),
+            backdrops: asArray(n.backdrop_path),
             seasons: r,
           };
         }),
-      { memoryOnly: !0 },
+      {
+        memoryOnly: !0,
+      },
     );
   }
   function Le(e, t) {
-    return ue(
+    return cached(
       "epg:" + e,
       ie,
       () =>
-        n(null, null, function* () {
-          let n = yield me("get_short_epg", { stream_id: e, limit: t || 4 });
-          return he(n && n.epg_listings).map((e) => ({
+        runAsync(null, null, function* () {
+          let n = yield playerApi("get_short_epg", {
+            stream_id: e,
+            limit: t || 4,
+          });
+          return asArray(n && n.epg_listings).map((e) => ({
             title: Ie(e.title),
             description: Ie(e.description),
             start: e.start ? new Date(e.start.replace(" ", "T")).getTime() : null,
@@ -714,7 +802,9 @@
             nowPlaying: "1" === String(e.now_playing),
           }));
         }),
-      { memoryOnly: !0 },
+      {
+        memoryOnly: !0,
+      },
     );
   }
   function Ie(e) {
@@ -730,13 +820,13 @@
     }
   }
   function Ne(e, t) {
-    return ce() + "/live/" + de() + "/" + e + "." + (t || "ts");
+    return portalBase() + "/live/" + de() + "/" + e + "." + (t || "ts");
   }
   function Ae(e, t) {
-    return ce() + "/movie/" + de() + "/" + e + "." + (t || "mp4");
+    return portalBase() + "/movie/" + de() + "/" + e + "." + (t || "mp4");
   }
   function Ee(e, t) {
-    return ce() + "/series/" + de() + "/" + e + "." + (t || "mp4");
+    return portalBase() + "/series/" + de() + "/" + e + "." + (t || "mp4");
   }
   var Oe = {};
   t(Oe, {
@@ -771,21 +861,66 @@
     return -1 === t ? "" : e.slice(t + 1).trim();
   }
   var De = [
-    { name: "United Kingdom", re: /\b(uk|gb|british|britain|england)\b/i },
-    { name: "United States", re: /\b(us|usa|united states|american)\b/i },
-    { name: "Egypt", re: /\b(eg|egy|egypt)\b|مصر/i },
-    { name: "Saudi Arabia", re: /\b(sa|ksa|saudi)\b|السعودية/i },
-    { name: "United Arab Emirates", re: /\b(ae|uae|emirates)\b|الامارات/i },
-    { name: "Qatar", re: /\b(qa|qatar)\b|قطر/i },
-    { name: "Kuwait", re: /\b(kw|kuwait)\b|الكويت/i },
-    { name: "Lebanon", re: /\b(lb|lebanon)\b|لبنان/i },
-    { name: "Morocco", re: /\b(ma|morocco)\b|المغرب/i },
-    { name: "Turkey", re: /\b(tr|turkey|turkish)\b/i },
-    { name: "France", re: /\b(fr|france|french)\b/i },
-    { name: "Germany", re: /\b(de|germany|german)\b/i },
-    { name: "Spain", re: /\b(es|spain|spanish)\b/i },
-    { name: "Italy", re: /\b(it|italy|italian)\b/i },
-    { name: "India", re: /\b(in|india|indian)\b/i },
+    {
+      name: "United Kingdom",
+      re: /\b(uk|gb|british|britain|england)\b/i,
+    },
+    {
+      name: "United States",
+      re: /\b(us|usa|united states|american)\b/i,
+    },
+    {
+      name: "Egypt",
+      re: /\b(eg|egy|egypt)\b|مصر/i,
+    },
+    {
+      name: "Saudi Arabia",
+      re: /\b(sa|ksa|saudi)\b|السعودية/i,
+    },
+    {
+      name: "United Arab Emirates",
+      re: /\b(ae|uae|emirates)\b|الامارات/i,
+    },
+    {
+      name: "Qatar",
+      re: /\b(qa|qatar)\b|قطر/i,
+    },
+    {
+      name: "Kuwait",
+      re: /\b(kw|kuwait)\b|الكويت/i,
+    },
+    {
+      name: "Lebanon",
+      re: /\b(lb|lebanon)\b|لبنان/i,
+    },
+    {
+      name: "Morocco",
+      re: /\b(ma|morocco)\b|المغرب/i,
+    },
+    {
+      name: "Turkey",
+      re: /\b(tr|turkey|turkish)\b/i,
+    },
+    {
+      name: "France",
+      re: /\b(fr|france|french)\b/i,
+    },
+    {
+      name: "Germany",
+      re: /\b(de|germany|german)\b/i,
+    },
+    {
+      name: "Spain",
+      re: /\b(es|spain|spanish)\b/i,
+    },
+    {
+      name: "Italy",
+      re: /\b(it|italy|italian)\b/i,
+    },
+    {
+      name: "India",
+      re: /\b(in|india|indian)\b/i,
+    },
   ];
   function je(e) {
     for (let t of De) if (t.re.test(e)) return t.name;
@@ -806,7 +941,11 @@
           n = qe(t) || e["tvg-name"] || "Channel",
           i = (e["group-title"] || "").trim();
         (i && (a = !0),
-          (r = { name: n, logo: e["tvg-logo"] || null, group: i || je(n) || "Uncategorised" }));
+          (r = {
+            name: n,
+            logo: e["tvg-logo"] || null,
+            group: i || je(n) || "Uncategorised",
+          }));
         continue;
       }
       if ("#" === t.charAt(0) || !r) continue;
@@ -836,7 +975,7 @@
     return Pe
       ? Promise.resolve(Pe)
       : Me ||
-          (Me = n(null, null, function* () {
+          (Me = runAsync(null, null, function* () {
             let e = J(),
               t = yield fetch(e.url);
             if (!t.ok) throw new Error("Playlist download failed (HTTP " + t.status + ")");
@@ -847,12 +986,12 @@
           }));
   }
   function Ke() {
-    return n(this, null, function* () {
+    return runAsync(this, null, function* () {
       return (yield Re()).categories;
     });
   }
   function ze(e) {
-    return n(this, null, function* () {
+    return runAsync(this, null, function* () {
       return (yield Re()).items[e] || [];
     });
   }
@@ -887,7 +1026,7 @@
     return "";
   }
   function Ye() {
-    return n(this, null, function* () {
+    return runAsync(this, null, function* () {
       let e = yield Re();
       if (!e.count) throw new Error("That playlist has no channels in it");
       return {
@@ -1081,7 +1220,11 @@
         match: (e) => at(e) && lt(e, "sports"),
         rank: (e) => ft(e.name, ut),
       },
-      { id: "featured:arab-news", name: "⭐  Arab News", match: (e) => at(e) && lt(e, "news") },
+      {
+        id: "featured:arab-news",
+        name: "⭐  Arab News",
+        match: (e) => at(e) && lt(e, "news"),
+      },
       {
         id: "featured:arab-entertainment",
         name: "⭐  Arab Entertainment",
@@ -1093,9 +1236,21 @@
         match: (e) =>
           /\b(bbc|cnn|sky news|euronews|france 24|dw|al jazeera|aljazeera|rt|trt)\b/i.test(e.name),
       },
-      { id: "featured:kids", name: "⭐  Kids", match: (e) => lt(e, "kids") || lt(e, "animation") },
-      { id: "featured:documentary", name: "⭐  Documentary", match: (e) => lt(e, "documentary") },
-      { id: "featured:music", name: "⭐  Music", match: (e) => lt(e, "music") },
+      {
+        id: "featured:kids",
+        name: "⭐  Kids",
+        match: (e) => lt(e, "kids") || lt(e, "animation"),
+      },
+      {
+        id: "featured:documentary",
+        name: "⭐  Documentary",
+        match: (e) => lt(e, "documentary"),
+      },
+      {
+        id: "featured:music",
+        name: "⭐  Music",
+        match: (e) => lt(e, "music"),
+      },
     ],
     vt = null,
     yt = null,
@@ -1124,7 +1279,7 @@
     return !1;
   }
   function Ct(e) {
-    return n(this, null, function* () {
+    return runAsync(this, null, function* () {
       let t = yield fetch("https://iptv-org.github.io/api/" + e + ".json");
       if (!t.ok) throw new Error("free playlist: " + e + " HTTP " + t.status);
       return t.json();
@@ -1134,7 +1289,7 @@
     return vt
       ? Promise.resolve(vt)
       : yt ||
-          (yt = n(null, null, function* () {
+          (yt = runAsync(null, null, function* () {
             let [e, t, n] = yield Promise.all([Ct("channels"), Ct("streams"), Ct("countries")]),
               i = Object.create(null);
             for (let t of e) i[t.id] = t;
@@ -1191,7 +1346,13 @@
                 }
                 t &&
                   (l[e.id] || (l[e.id] = []),
-                  l[e.id].push(e.rank ? Object.assign({}, d, { __rank: e.rank(n) }) : d));
+                  l[e.id].push(
+                    e.rank
+                      ? Object.assign({}, d, {
+                          __rank: e.rank(n),
+                        })
+                      : d,
+                  ));
               }
             }
             let m = [],
@@ -1218,7 +1379,11 @@
             let f = Object.keys(a).sort((e, t) => a[t].length - a[e].length);
             for (let e of f) {
               let t = "country:" + e;
-              (m.push({ id: t, name: (r[e] || e) + "  (" + a[e].length + ")", kind: "live" }),
+              (m.push({
+                id: t,
+                name: (r[e] || e) + "  (" + a[e].length + ")",
+                kind: "live",
+              }),
                 (h[t] = a[e]));
             }
             for (let e of rt) {
@@ -1234,20 +1399,30 @@
             return (
               bt &&
                 o.length &&
-                (m.push({ id: wt, name: "🔒  X  (" + o.length + ")", kind: "live", locked: !0 }),
+                (m.push({
+                  id: wt,
+                  name: "🔒  X  (" + o.length + ")",
+                  kind: "live",
+                  locked: !0,
+                }),
                 (h[wt] = o)),
               (yt = null),
-              (vt = { categories: m, items: h, kept: c, dropped: u })
+              (vt = {
+                categories: m,
+                items: h,
+                kept: c,
+                dropped: u,
+              })
             );
           }));
   }
   function _t() {
-    return n(this, null, function* () {
+    return runAsync(this, null, function* () {
       return (yield St()).categories;
     });
   }
   function Tt(e) {
-    return n(this, null, function* () {
+    return runAsync(this, null, function* () {
       return (yield St()).items[e] || [];
     });
   }
@@ -1282,7 +1457,7 @@
     return "";
   }
   function Dt() {
-    return n(this, null, function* () {
+    return runAsync(this, null, function* () {
       let e = yield St();
       if (!e.kept) throw new Error("Could not load the free playlist");
       return {
@@ -1297,14 +1472,23 @@
     });
   }
   function jt() {
-    return vt ? { kept: vt.kept, dropped: vt.dropped } : null;
+    return vt
+      ? {
+          kept: vt.kept,
+          dropped: vt.dropped,
+        }
+      : null;
   }
-  var Ut = { xtream: j, m3u: Oe, free: tt };
-  function Rt() {
-    return Ut[V()] || j;
+  var Ut = {
+    xtream: j,
+    m3u: Oe,
+    free: tt,
+  };
+  function activeAdapter() {
+    return Ut[sourceKind()] || j;
   }
   function Kt() {
-    let e = V();
+    let e = sourceKind();
     return {
       type: e,
       hasVod: "xtream" === e,
@@ -1313,42 +1497,61 @@
     };
   }
   function zt() {
-    return Rt().liveCategories();
+    return activeAdapter().liveCategories();
   }
   function Bt(e) {
-    return Rt().liveStreams(e);
+    return activeAdapter().liveStreams(e);
   }
   function Vt() {
-    return Rt().vodCategories();
+    return activeAdapter().vodCategories();
   }
   function Wt(e) {
-    return Rt().vodStreams(e);
+    return activeAdapter().vodStreams(e);
   }
   function Jt() {
-    return Rt().seriesCategories();
+    return activeAdapter().seriesCategories();
   }
   function Ht(e) {
-    return Rt().seriesList(e);
+    return activeAdapter().seriesList(e);
   }
   function Xt(e) {
-    return Rt().movieInfo(e);
+    return activeAdapter().movieInfo(e);
   }
   function Gt(e, t, n) {
-    return Rt().liveUrl(e, t, n);
+    return activeAdapter().liveUrl(e, t, n);
   }
   function Zt(e, t) {
-    return Rt().movieUrl(e, t);
+    return activeAdapter().movieUrl(e, t);
   }
-  var $t = "iptv:language",
-    Qt = [
-      { code: "en", label: "English" },
-      { code: "ar", label: "العربية", rtl: !0 },
-      { code: "es", label: "Español" },
-      { code: "fr", label: "Français" },
-      { code: "tr", label: "Türkçe" },
-      { code: "de", label: "Deutsch" },
+  var LANGUAGE_KEY = "iptv:language",
+    LOCALES = [
+      {
+        code: "en",
+        label: "English",
+      },
+      {
+        code: "ar",
+        label: "العربية",
+        rtl: !0,
+      },
+      {
+        code: "es",
+        label: "Español",
+      },
+      {
+        code: "fr",
+        label: "Français",
+      },
+      {
+        code: "tr",
+        label: "Türkçe",
+      },
+      {
+        code: "de",
+        label: "Deutsch",
+      },
     ],
-    Yt = {
+    MESSAGES = {
       en: {
         "nav.continue": "Continue Watching",
         "nav.favorites": "Favourites",
@@ -1677,37 +1880,37 @@
       },
     },
     en = null;
-  function tn() {
+  function detectLanguage() {
     let e = "";
     try {
       e = (navigator.language || "").toLowerCase();
     } catch (e) {}
-    for (let t of Qt) if (0 === e.indexOf(t.code)) return t.code;
+    for (let t of LOCALES) if (0 === e.indexOf(t.code)) return t.code;
     return "en";
   }
-  function nn() {
+  function currentLanguage() {
     if (en) return en;
     try {
-      en = localStorage.getItem($t) || tn();
+      en = localStorage.getItem(LANGUAGE_KEY) || detectLanguage();
     } catch (e) {
-      en = tn();
+      en = detectLanguage();
     }
     return en;
   }
-  function rn() {
+  function applyDocumentLanguage() {
     (document.documentElement.setAttribute(
       "dir",
       (function () {
-        let e = Qt.filter((e) => e.code === nn())[0];
+        let e = LOCALES.filter((e) => e.code === currentLanguage())[0];
         return !(!e || !e.rtl);
       })()
         ? "rtl"
         : "ltr",
     ),
-      document.documentElement.setAttribute("lang", nn()));
+      document.documentElement.setAttribute("lang", currentLanguage()));
   }
-  function sn(e) {
-    return (Yt[nn()] || Yt.en)[e] || Yt.en[e] || e;
+  function translate(e) {
+    return (MESSAGES[currentLanguage()] || MESSAGES.en)[e] || MESSAGES.en[e] || e;
   }
   var an = "http://www.w3.org/2000/svg",
     ln = 0;
@@ -1765,39 +1968,91 @@
     );
   }
   var cn = [
-    { id: "continue", icon: "▶", key: "nav.continue" },
-    { id: "favorites", icon: "★", key: "nav.favorites" },
-    { id: "search", icon: "⌕", key: "nav.search" },
-    { id: "home", icon: "⌂", key: "nav.home" },
-    { id: "live", icon: "▤", key: "nav.live", needs: "live" },
-    { id: "movies", icon: "🎬", key: "nav.movies", needs: "vod" },
-    { id: "series", icon: "📺", key: "nav.series", needs: "series" },
-    { id: "settings", icon: "⚙", key: "nav.settings" },
-    { id: "freetv", icon: "🌐", key: "nav.freetv", personalOnly: !0 },
+    {
+      id: "continue",
+      icon: "▶",
+      key: "nav.continue",
+    },
+    {
+      id: "favorites",
+      icon: "★",
+      key: "nav.favorites",
+    },
+    {
+      id: "search",
+      icon: "⌕",
+      key: "nav.search",
+    },
+    {
+      id: "home",
+      icon: "⌂",
+      key: "nav.home",
+    },
+    {
+      id: "live",
+      icon: "▤",
+      key: "nav.live",
+      needs: "live",
+    },
+    {
+      id: "movies",
+      icon: "🎬",
+      key: "nav.movies",
+      needs: "vod",
+    },
+    {
+      id: "series",
+      icon: "📺",
+      key: "nav.series",
+      needs: "series",
+    },
+    {
+      id: "settings",
+      icon: "⚙",
+      key: "nav.settings",
+    },
+    {
+      id: "freetv",
+      icon: "🌐",
+      key: "nav.freetv",
+      personalOnly: !0,
+    },
   ];
   function dn() {
-    let e = i("nav", {
+    let e = createElement("nav", {
         class: "rail",
         "data-focus-memory": "rail",
         "data-focus-contain": "vertical",
       }),
-      t = i("div", { class: "rail-brand" }),
-      n = i("span", { class: "rail-brand-mark" });
+      t = createElement("div", {
+        class: "rail-brand",
+      }),
+      n = createElement("span", {
+        class: "rail-brand-mark",
+      });
     n.appendChild(on(44));
-    let r = i("span", { class: "rail-brand-full" });
+    let r = createElement("span", {
+      class: "rail-brand-full",
+    });
     (r.appendChild(un(44)), t.appendChild(n), t.appendChild(r), e.appendChild(t));
     let s = {};
     for (let t of cn) {
       (t.personalOnly, 0);
-      let n = i(
+      let n = createElement(
         "div",
         {
           class: "rail-item focusable" + ("freetv" === t.id ? " rail-item-last" : ""),
           "data-route": t.id,
         },
         [
-          i("span", { class: "rail-icon", text: t.icon }),
-          i("span", { class: "rail-label", text: sn(t.key) }),
+          createElement("span", {
+            class: "rail-icon",
+            text: t.icon,
+          }),
+          createElement("span", {
+            class: "rail-label",
+            text: translate(t.key),
+          }),
         ],
       );
       ((n.__needs = t.needs || null), (s[t.id] = n), e.appendChild(n));
@@ -1820,13 +2075,13 @@
           if (!r) return;
           (t.stopPropagation(), t.preventDefault());
           var o = r.getAttribute("data-route");
-          o !== I() && A(o, {});
+          o !== currentRoute() && navigateRoot(o, {});
           var k = 0;
           !(function f() {
             var a = document.querySelectorAll(".focusable");
             for (var q = 0; q < a.length; q++)
               if (!e.contains(a[q]) && null !== a[q].offsetParent)
-                return (e.classList.remove("expanded"), void v(a[q]));
+                return (e.classList.remove("expanded"), void focusElement(a[q]));
             k++ < 15 && setTimeout(f, 110);
           })();
         },
@@ -1840,7 +2095,7 @@
         if (!t) return;
         l && (clearTimeout(l), (l = null));
         let n = t.getAttribute("data-route");
-        n !== I() && A(n, {});
+        n !== currentRoute() && navigateRoot(n, {});
       }),
       document.addEventListener("focus-moved", (t) => {
         e.contains(t.detail.node) || e.classList.remove("expanded");
@@ -1860,10 +2115,26 @@
     );
   }
   var mn = [
-    { rank: 0, tag: "4K", re: /(^|[\s\[\(_-])(4k|uhd|2160p?)([\s\]\)_-]|$)/i },
-    { rank: 1, tag: "FHD", re: /(^|[\s\[\(_-])(fhd|1080p?)([\s\]\)_-]|$)/i },
-    { rank: 2, tag: "HD", re: /(^|[\s\[\(_-])(hd|720p?)([\s\]\)_-]|$)/i },
-    { rank: 3, tag: "SD", re: /(^|[\s\[\(_-])(sd|480p?|420p?|low)([\s\]\)_-]|$)/i },
+    {
+      rank: 0,
+      tag: "4K",
+      re: /(^|[\s\[\(_-])(4k|uhd|2160p?)([\s\]\)_-]|$)/i,
+    },
+    {
+      rank: 1,
+      tag: "FHD",
+      re: /(^|[\s\[\(_-])(fhd|1080p?)([\s\]\)_-]|$)/i,
+    },
+    {
+      rank: 2,
+      tag: "HD",
+      re: /(^|[\s\[\(_-])(hd|720p?)([\s\]\)_-]|$)/i,
+    },
+    {
+      rank: 3,
+      tag: "SD",
+      re: /(^|[\s\[\(_-])(sd|480p?|420p?|low)([\s\]\)_-]|$)/i,
+    },
   ];
   function hn(e) {
     for (let t of mn) if (t.re.test(e)) return t;
@@ -1920,7 +2191,12 @@
     Mn = 417,
     Fn = 33,
     qn = 34,
-    Dn = { [yn]: "left", [bn]: "up", [wn]: "right", [xn]: "down" };
+    Dn = {
+      [yn]: "left",
+      [bn]: "up",
+      [wn]: "right",
+      [xn]: "down",
+    };
   function jn(e) {
     return e === Cn || e === Sn || e === _n;
   }
@@ -1935,13 +2211,33 @@
         columns: 10,
         keys: "ا ب ت ث ج ح خ د ذ ر ز س ش ص ض ط ظ ع غ ف ق ك ل م ن ه و ي ء أ إ آ ة ى ئ ؤ".split(" "),
       },
-      en: { label: "English", columns: 10, keys: Kn },
-      es: { label: "Español", columns: 10, keys: Kn.concat("ñ á é í ó ú ü".split(" ")) },
-      fr: { label: "Français", columns: 10, keys: Kn.concat("à â ç é è ê ë î ï ô ù û".split(" ")) },
+      en: {
+        label: "English",
+        columns: 10,
+        keys: Kn,
+      },
+      es: {
+        label: "Español",
+        columns: 10,
+        keys: Kn.concat("ñ á é í ó ú ü".split(" ")),
+      },
+      fr: {
+        label: "Français",
+        columns: 10,
+        keys: Kn.concat("à â ç é è ê ë î ï ô ù û".split(" ")),
+      },
     },
     Bn = {
-      tr: { label: "Türkçe", columns: 10, keys: Kn.concat("ç ğ ı ö ş ü".split(" ")) },
-      de: { label: "Deutsch", columns: 10, keys: Kn.concat("ä ö ü ß".split(" ")) },
+      tr: {
+        label: "Türkçe",
+        columns: 10,
+        keys: Kn.concat("ç ğ ı ö ş ü".split(" ")),
+      },
+      de: {
+        label: "Deutsch",
+        columns: 10,
+        keys: Kn.concat("ä ö ü ß".split(" ")),
+      },
       ru: {
         label: "Русский",
         columns: 11,
@@ -1952,7 +2248,11 @@
         columns: 10,
         keys: Kn.concat("ã á â à ç é ê í ó ô õ ú".split(" ")),
       },
-      it: { label: "Italiano", columns: 10, keys: Kn.concat("à è é ì ò ù".split(" ")) },
+      it: {
+        label: "Italiano",
+        columns: 10,
+        keys: Kn.concat("à è é ì ò ù".split(" ")),
+      },
       hi: {
         label: "हिन्दी",
         columns: 11,
@@ -1970,11 +2270,27 @@
       a = t.language || "ar",
       l = !1,
       o = null,
-      u = i("div", { class: "kb-suggestions", hidden: "hidden" }),
-      c = i("div", { class: "kb-languages" }),
-      d = i("div", { class: "kb-keys" }),
-      m = i("div", { class: "kb-actions" }),
-      h = i("div", { class: "keyboard", "data-focus-memory": "keyboard" }, [u, c, d, m]),
+      u = createElement("div", {
+        class: "kb-suggestions",
+        hidden: "hidden",
+      }),
+      c = createElement("div", {
+        class: "kb-languages",
+      }),
+      d = createElement("div", {
+        class: "kb-keys",
+      }),
+      m = createElement("div", {
+        class: "kb-actions",
+      }),
+      h = createElement(
+        "div",
+        {
+          class: "keyboard",
+          "data-focus-memory": "keyboard",
+        },
+        [u, c, d, m],
+      ),
       f = t.suggest || null;
     function p() {
       if (!f) return;
@@ -1985,10 +2301,10 @@
       } catch (e) {
         t = [];
       }
-      if ((r(u), t.length)) {
+      if ((clearChildren(u), t.length)) {
         for (let e of t.slice(0, 6)) {
           let t = "string" == typeof e ? e : e.text,
-            n = i("div", {
+            n = createElement("div", {
               class: "kb-suggestion focusable",
               dir: "auto",
               text: "string" == typeof e ? e : e.label || e.text,
@@ -2011,20 +2327,27 @@
       o && ((o.value = ""), w());
     }
     function w() {
-      (o && o.dispatchEvent(new Event("input", { bubbles: !0 })), p(), n(o ? o.value : ""));
+      (o &&
+        o.dispatchEvent(
+          new Event("input", {
+            bubbles: !0,
+          }),
+        ),
+        p(),
+        n(o ? o.value : ""));
     }
     function x(e, t, n, r) {
-      let s = i("div", {
+      let s = createElement("div", {
         class: "kb-key focusable" + (t ? " " + t : "") + (r ? " kb-key-wide" : ""),
         text: e,
       });
       return ((s.__press = n), s);
     }
     function k() {
-      r(c);
+      clearChildren(c);
       let e = Object.keys(l ? Vn : zn);
       for (let t of e) {
-        let e = i("div", {
+        let e = createElement("div", {
           class: "kb-lang focusable" + (t === a ? " active" : ""),
           text: Vn[t].label,
         });
@@ -2034,7 +2357,10 @@
           c.appendChild(e));
       }
       if (!l) {
-        let e = i("div", { class: "kb-lang kb-lang-more focusable", text: "More…" });
+        let e = createElement("div", {
+          class: "kb-lang kb-lang-more focusable",
+          text: "More…",
+        });
         ((e.__press = () => {
           ((l = !0), k());
         }),
@@ -2042,7 +2368,7 @@
       }
     }
     function C() {
-      r(d);
+      clearChildren(d);
       let e = Vn[a],
         t = e.columns,
         n = "calc((100% - " + 10 * (t - 1) + "px) / " + t + ")";
@@ -2063,7 +2389,7 @@
       }),
       k(),
       C(),
-      r(m),
+      clearChildren(m),
       m.appendChild(x("Space", "kb-key-space", () => g(" "), !0)),
       m.appendChild(x("⌫  Delete", "kb-key-action", y, !0)),
       m.appendChild(x("Clear", "kb-key-action", b, !0)),
@@ -2082,7 +2408,7 @@
         },
         firstKey: () => d.querySelector(".kb-key"),
         focusFirst() {
-          v(d.querySelector(".kb-key"));
+          focusElement(d.querySelector(".kb-key"));
         },
       }
     );
@@ -2137,57 +2463,122 @@
   var $n = ["@gmail.com", "@hotmail.com", "@yahoo.com", "@outlook.com", "@icloud.com"];
   var Qn = ["http://", "https://", ".com", ".net", ".tv", ":8080", ":80", ":2052"];
   var Yn = [
-    { id: "xtream", icon: "⌂", titleKey: "welcome.xtream", detailKey: "welcome.xtreamDetail" },
-    { id: "m3u", icon: "≡", titleKey: "welcome.m3u", detailKey: "welcome.m3uDetail" },
-    { id: "free", icon: "★", titleKey: "welcome.free", detailKey: "welcome.freeDetail" },
+    {
+      id: "xtream",
+      icon: "⌂",
+      titleKey: "welcome.xtream",
+      detailKey: "welcome.xtreamDetail",
+    },
+    {
+      id: "m3u",
+      icon: "≡",
+      titleKey: "welcome.m3u",
+      detailKey: "welcome.m3uDetail",
+    },
+    {
+      id: "free",
+      icon: "★",
+      titleKey: "welcome.free",
+      detailKey: "welcome.freeDetail",
+    },
   ];
   function ei() {
     let e = W() || U,
       t = !1,
       s = null,
-      a = i("div", { class: "login-error" }),
-      l = i("div", { class: "welcome-options", "data-focus-memory": "welcome" });
+      a = createElement("div", {
+        class: "login-error",
+      }),
+      l = createElement("div", {
+        class: "welcome-options",
+        "data-focus-memory": "welcome",
+      });
     for (let e of Yn) {
-      let t = i("div", { class: "welcome-option focusable" }, [
-        i("span", { class: "welcome-option-icon", text: e.icon }),
-        i("div", { class: "welcome-option-text" }, [
-          i("div", { class: "welcome-option-title", text: sn(e.titleKey) }),
-          i("div", { class: "welcome-option-detail", text: sn(e.detailKey) }),
-        ]),
-      ]);
+      let t = createElement(
+        "div",
+        {
+          class: "welcome-option focusable",
+        },
+        [
+          createElement("span", {
+            class: "welcome-option-icon",
+            text: e.icon,
+          }),
+          createElement(
+            "div",
+            {
+              class: "welcome-option-text",
+            },
+            [
+              createElement("div", {
+                class: "welcome-option-title",
+                text: translate(e.titleKey),
+              }),
+              createElement("div", {
+                class: "welcome-option-detail",
+                text: translate(e.detailKey),
+              }),
+            ],
+          ),
+        ],
+      );
       ((t.__option = e), l.appendChild(t));
     }
     function o(e, t) {
-      return i("div", { class: "field" }, [i("label", { class: "field-label", text: e }), t]);
+      return createElement(
+        "div",
+        {
+          class: "field",
+        },
+        [
+          createElement("label", {
+            class: "field-label",
+            text: e,
+          }),
+          t,
+        ],
+      );
     }
-    let u = i("input", {
+    let u = createElement("input", {
         class: "field-input focusable",
         type: "text",
         readonly: "readonly",
         value: e.url || "",
         placeholder: "http://server:port",
       }),
-      c = i("input", {
+      c = createElement("input", {
         class: "field-input focusable",
         type: "text",
         readonly: "readonly",
         value: e.username || "",
       }),
-      d = i("input", {
+      d = createElement("input", {
         class: "field-input focusable",
         type: "password",
         readonly: "readonly",
         value: e.password || "",
       }),
-      m = i("input", {
+      m = createElement("input", {
         class: "field-input focusable",
         type: "text",
         readonly: "readonly",
         placeholder: "http://example.com/playlist.m3u",
       }),
-      h = i("div", { class: "button primary focusable", text: sn("welcome.signIn") }),
-      f = i("div", { class: "button focusable", text: sn("welcome.back") }),
-      p = i("div", { class: "welcome-actions" }, [h, f]),
+      h = createElement("div", {
+        class: "button primary focusable",
+        text: translate("welcome.signIn"),
+      }),
+      f = createElement("div", {
+        class: "button focusable",
+        text: translate("welcome.back"),
+      }),
+      p = createElement(
+        "div",
+        {
+          class: "welcome-actions",
+        },
+        [h, f],
+      ),
       g = Jn({
         language: "en",
         suggest: (e) =>
@@ -2197,45 +2588,100 @@
                 return t
                   ? -1 !== t.indexOf("@")
                     ? []
-                    : $n.map((e) => ({ text: t + e, label: e }))
+                    : $n.map((e) => ({
+                        text: t + e,
+                        label: e,
+                      }))
                   : [];
               })(e)
             : y === u || y === m
               ? (function (e) {
                   let t = String(e || "");
-                  if (!t) return Qn.slice(0, 2).map((e) => ({ text: e, label: e }));
+                  if (!t)
+                    return Qn.slice(0, 2).map((e) => ({
+                      text: e,
+                      label: e,
+                    }));
                   let n = [];
                   for (let e of Qn.slice(2))
-                    t.slice(-e.length) !== e && n.push({ text: t + e, label: e });
+                    t.slice(-e.length) !== e &&
+                      n.push({
+                        text: t + e,
+                        label: e,
+                      });
                   return n;
                 })(e)
               : [],
       }),
       y = null,
-      b = i("div", { class: "welcome-keyboard", hidden: "hidden" }, [g.node]),
-      w = i("div", { class: "welcome-form", hidden: "hidden" }, [
-        i("h2", { class: "welcome-form-title", text: "Xtream account" }),
-        o(sn("welcome.serverUrl"), u),
-        o(sn("welcome.username"), c),
-        o(sn("welcome.password"), d),
-      ]),
-      x = i("div", { class: "welcome-form", hidden: "hidden" }, [
-        i("h2", { class: "welcome-form-title", text: "M3U playlist" }),
-        o(sn("welcome.playlistUrl"), m),
-      ]),
-      k = i("div", { class: "login-brand" });
+      b = createElement(
+        "div",
+        {
+          class: "welcome-keyboard",
+          hidden: "hidden",
+        },
+        [g.node],
+      ),
+      w = createElement(
+        "div",
+        {
+          class: "welcome-form",
+          hidden: "hidden",
+        },
+        [
+          createElement("h2", {
+            class: "welcome-form-title",
+            text: "Xtream account",
+          }),
+          o(translate("welcome.serverUrl"), u),
+          o(translate("welcome.username"), c),
+          o(translate("welcome.password"), d),
+        ],
+      ),
+      x = createElement(
+        "div",
+        {
+          class: "welcome-form",
+          hidden: "hidden",
+        },
+        [
+          createElement("h2", {
+            class: "welcome-form-title",
+            text: "M3U playlist",
+          }),
+          o(translate("welcome.playlistUrl"), m),
+        ],
+      ),
+      k = createElement("div", {
+        class: "login-brand",
+      });
     k.appendChild(un(72));
-    let C = i("div", { class: "login-panel welcome-panel" }, [
-        k,
-        i("p", { class: "login-hint", text: sn("welcome.question") }),
-        l,
-        w,
-        x,
-        p,
-        a,
-        b,
-      ]),
-      S = i("div", { class: "login" }, [C]);
+    let C = createElement(
+        "div",
+        {
+          class: "login-panel welcome-panel",
+        },
+        [
+          k,
+          createElement("p", {
+            class: "login-hint",
+            text: translate("welcome.question"),
+          }),
+          l,
+          w,
+          x,
+          p,
+          a,
+          b,
+        ],
+      ),
+      S = createElement(
+        "div",
+        {
+          class: "login",
+        },
+        [C],
+      );
     function _() {
       ((s = null),
         (a.textContent = ""),
@@ -2244,14 +2690,14 @@
         (x.hidden = !0),
         (p.hidden = !0),
         (b.hidden = !0),
-        v(l.querySelector(".welcome-option")));
+        focusElement(l.querySelector(".welcome-option")));
     }
     function T(e, i, r) {
-      return n(this, null, function* () {
+      return runAsync(this, null, function* () {
         if (!t) {
           ((t = !0),
             (a.textContent = ""),
-            (h.textContent = r || sn("welcome.connecting")),
+            (h.textContent = r || translate("welcome.connecting")),
             (function (e) {
               B = e;
               try {
@@ -2273,12 +2719,12 @@
               })(i),
             et && et());
           try {
-            (yield Rt().authenticate(), A("home", {}));
+            (yield activeAdapter().authenticate(), navigateRoot("home", {}));
           } catch (e) {
             ((t = !1),
-              (h.textContent = sn("welcome.signIn")),
+              (h.textContent = translate("welcome.signIn")),
               (a.textContent =
-                "Login failed" === e.message ? sn("welcome.wrongLogin") : e.message));
+                "Login failed" === e.message ? translate("welcome.wrongLogin") : e.message));
           }
         }
       });
@@ -2295,7 +2741,7 @@
         if (t) {
           let e = t.__option.id;
           "free" === e
-            ? T("free", null, sn("welcome.loadingChannels"))
+            ? T("free", null, translate("welcome.loadingChannels"))
             : (function (e) {
                 ((s = e),
                   (a.textContent = ""),
@@ -2304,9 +2750,9 @@
                   (x.hidden = "m3u" !== e),
                   (p.hidden = !1),
                   (b.hidden = !1),
-                  (h.textContent = sn("welcome.signIn")));
+                  (h.textContent = translate("welcome.signIn")));
                 let t = "xtream" === e ? u : m;
-                (g.setTarget(t), v(t));
+                (g.setTarget(t), focusElement(t));
               })(e);
         } else
           e.target === h
@@ -2316,13 +2762,21 @@
                     t = c.value.trim(),
                     n = d.value.trim();
                   return e && t && n
-                    ? void T("xtream", { url: e, username: t, password: n })
-                    : void (a.textContent = sn("welcome.fillAll"));
+                    ? void T("xtream", {
+                        url: e,
+                        username: t,
+                        password: n,
+                      })
+                    : void (a.textContent = translate("welcome.fillAll"));
                 }
                 if ("m3u" === s) {
                   let e = m.value.trim();
-                  if (!e) return void (a.textContent = sn("welcome.enterPlaylist"));
-                  T("m3u", { url: e, username: "", password: "" });
+                  if (!e) return void (a.textContent = translate("welcome.enterPlaylist"));
+                  T("m3u", {
+                    url: e,
+                    username: "",
+                    password: "",
+                  });
                 }
               })()
             : e.target === f
@@ -2334,7 +2788,7 @@
           (e.appendChild(S), _());
         },
         unmount() {
-          r(S);
+          clearChildren(S);
         },
         initialFocus: () => l.querySelector(".welcome-option"),
         onKey: (e) => !(!jn(e) || !s) && (_(), !0),
@@ -2343,15 +2797,33 @@
   }
   function ti(e) {
     let t = e || {},
-      n = i("div", { class: "page" }),
+      n = createElement("div", {
+        class: "page",
+      }),
       r = 0;
     return (
       t.title &&
         n.appendChild(
-          i("div", { class: "page-header" }, [
-            i("h1", { class: "page-title", dir: "auto", text: t.title }),
-            t.subtitle ? i("p", { class: "page-subtitle", dir: "auto", text: t.subtitle }) : null,
-          ]),
+          createElement(
+            "div",
+            {
+              class: "page-header",
+            },
+            [
+              createElement("h1", {
+                class: "page-title",
+                dir: "auto",
+                text: t.title,
+              }),
+              t.subtitle
+                ? createElement("p", {
+                    class: "page-subtitle",
+                    dir: "auto",
+                    text: t.subtitle,
+                  })
+                : null,
+            ],
+          ),
         ),
       n.addEventListener("focus-enter", (e) => {
         !(function (e) {
@@ -2406,7 +2878,11 @@
             (e) => {
               for (let t of e) t.isIntersecting && (ii.unobserve(t.target), ri(t.target));
             },
-            { root: null, rootMargin: "200px 600px", threshold: 0.01 },
+            {
+              root: null,
+              rootMargin: "200px 600px",
+              threshold: 0.01,
+            },
           ))
         ).observe(e)
       : si(e);
@@ -2464,7 +2940,7 @@
     }
     ci();
   }
-  function hi(e, t) {
+  function progressFor(e, t) {
     return ui()[di(e, t)] || null;
   }
   function fi(e) {
@@ -2487,64 +2963,126 @@
     return e && e.duration ? Math.min(1, e.position / e.duration) : 0;
   }
   function gi(e, t, n) {
-    let r = i("div", { class: "poster " + (n || ""), "data-src": e || "", "data-title": t || "" });
+    let r = createElement("div", {
+      class: "poster " + (n || ""),
+      "data-src": e || "",
+      "data-title": t || "",
+    });
     return (ai(r), r);
   }
   function vi(e, t) {
     let n = t || {},
-      r = i("div", { class: "card card-poster focusable", "data-kind": e.kind, "data-id": e.id }),
+      r = createElement("div", {
+        class: "card card-poster focusable",
+        "data-kind": e.kind,
+        "data-id": e.id,
+      }),
       s = gi(e.poster, e.name, "poster-2x3");
     r.appendChild(s);
-    let a = n.resume || hi(e.kind, e.id);
+    let a = n.resume || progressFor(e.kind, e.id);
     return (
       a &&
         s.appendChild(
           (function (e) {
-            return i("div", { class: "card-progress" }, [
-              i("div", {
-                class: "card-progress-fill",
-                style: "width:" + Math.round(100 * e) + "%",
-              }),
-            ]);
+            return createElement(
+              "div",
+              {
+                class: "card-progress",
+              },
+              [
+                createElement("div", {
+                  class: "card-progress-fill",
+                  style: "width:" + Math.round(100 * e) + "%",
+                }),
+              ],
+            );
           })(pi(a)),
         ),
-      e.rating && s.appendChild(i("div", { class: "card-rating", text: e.rating.toFixed(1) })),
-      r.appendChild(i("div", { class: "card-label", dir: "auto", text: e.name })),
+      e.rating &&
+        s.appendChild(
+          createElement("div", {
+            class: "card-rating",
+            text: e.rating.toFixed(1),
+          }),
+        ),
+      r.appendChild(
+        createElement("div", {
+          class: "card-label",
+          dir: "auto",
+          text: e.name,
+        }),
+      ),
       (r.__item = e),
       r
     );
   }
   function yi(e, t) {
     let n = t || {},
-      r = i("div", { class: "card card-channel focusable", "data-kind": "live", "data-id": e.id }),
+      r = createElement("div", {
+        class: "card card-channel focusable",
+        "data-kind": "live",
+        "data-id": e.id,
+      }),
       s = gi(e.logo, e.name, "poster-16x9 poster-contain");
     return (
       r.appendChild(s),
       n.showNumber &&
         null != e.number &&
-        s.appendChild(i("div", { class: "card-number", text: String(e.number) })),
-      r.appendChild(i("div", { class: "card-label", dir: "auto", text: e.name })),
+        s.appendChild(
+          createElement("div", {
+            class: "card-number",
+            text: String(e.number),
+          }),
+        ),
+      r.appendChild(
+        createElement("div", {
+          class: "card-label",
+          dir: "auto",
+          text: e.name,
+        }),
+      ),
       (r.__item = e),
       r
     );
   }
   function bi(e, t) {
     let n = t || {},
-      r = i("div", { class: "channel-row focusable", "data-kind": "live", "data-id": e.id });
+      r = createElement("div", {
+        class: "channel-row focusable",
+        "data-kind": "live",
+        "data-id": e.id,
+      });
     n.showNumber &&
       null != e.number &&
-      r.appendChild(i("span", { class: "channel-row-number", text: String(e.number) }));
+      r.appendChild(
+        createElement("span", {
+          class: "channel-row-number",
+          text: String(e.number),
+        }),
+      );
     let s = gi(e.logo, "", "channel-row-logo poster-contain");
     return (
       r.appendChild(s),
-      r.appendChild(i("span", { class: "channel-row-name", dir: "auto", text: e.name })),
-      n.favorite && r.appendChild(i("span", { class: "channel-row-fav", text: "★" })),
+      r.appendChild(
+        createElement("span", {
+          class: "channel-row-name",
+          dir: "auto",
+          text: e.name,
+        }),
+      ),
+      n.favorite &&
+        r.appendChild(
+          createElement("span", {
+            class: "channel-row-fav",
+            text: "★",
+          }),
+        ),
       (r.__item = e),
       r
     );
   }
   function wi(e, t) {
-    let n = i("div", {
+    let n = createElement("div", {
       class: "category-button focusable" + ((t || {}).active ? " active" : ""),
       "data-category-id": e.id,
       dir: "auto",
@@ -2562,18 +3100,39 @@
           (this.showNumber = !!e.showNumber),
           (this.key = e.key || "row-" + Math.random().toString(36).slice(2)),
           (this.metrics =
-            "channel" === this.variant ? { width: 300, gap: 24 } : { width: 200, gap: 24 }),
+            "channel" === this.variant
+              ? {
+                  width: 300,
+                  gap: 24,
+                }
+              : {
+                  width: 200,
+                  gap: 24,
+                }),
           (this.rendered = new Map()),
           (this.offset = 0),
           (this.focusedIndex = 0),
           (this.node = this.build()));
       }
       build() {
-        let e = i("div", { class: "row row-" + this.variant, "data-focus-memory": this.key });
+        let e = createElement("div", {
+          class: "row row-" + this.variant,
+          "data-focus-memory": this.key,
+        });
         (this.title &&
-          e.appendChild(i("h2", { class: "row-title", dir: "auto", text: this.title })),
-          (this.viewport = i("div", { class: "row-viewport" })),
-          (this.track = i("div", { class: "row-track" })));
+          e.appendChild(
+            createElement("h2", {
+              class: "row-title",
+              dir: "auto",
+              text: this.title,
+            }),
+          ),
+          (this.viewport = createElement("div", {
+            class: "row-viewport",
+          })),
+          (this.track = createElement("div", {
+            class: "row-track",
+          })));
         let t = this.metrics.width + this.metrics.gap;
         return (
           (this.track.style.width = this.items.length * t + "px"),
@@ -2604,7 +3163,12 @@
           if (this.rendered.has(i)) continue;
           let t = this.items[i];
           if (!t) continue;
-          let n = "channel" === this.variant ? yi(t, { showNumber: this.showNumber }) : vi(t);
+          let n =
+            "channel" === this.variant
+              ? yi(t, {
+                  showNumber: this.showNumber,
+                })
+              : vi(t);
           ((n.style.transform = "translate3d(" + i * e + "px,0,0)"),
             n.setAttribute("data-index", String(i)),
             this.track.appendChild(n),
@@ -2626,7 +3190,10 @@
         this.track.style.transform = "translate3d(" + -this.offset * s + "px,0,0)";
       }
       setItems(e) {
-        ((this.items = e || []), (this.offset = 0), this.rendered.clear(), r(this.track));
+        ((this.items = e || []),
+          (this.offset = 0),
+          this.rendered.clear(),
+          clearChildren(this.track));
         let t = this.metrics.width + this.metrics.gap;
         ((this.track.style.width = this.items.length * t + "px"),
           (this.track.style.transform = "translate3d(0,0,0)"),
@@ -2657,34 +3224,82 @@
     let t = e.onPlay,
       r = e.onInfo,
       s = !1 !== e.teaser,
-      a = i("div", { class: "hero-blur" }),
-      l = i("div", { class: "hero-backdrop" }),
-      o = i("div", { class: "hero-backdrop" }),
+      a = createElement("div", {
+        class: "hero-blur",
+      }),
+      l = createElement("div", {
+        class: "hero-backdrop",
+      }),
+      o = createElement("div", {
+        class: "hero-backdrop",
+      }),
       u = l,
-      c = i("h1", { class: "hero-title", dir: "auto" }),
-      d = i("div", { class: "hero-meta" }),
-      m = i("p", { class: "hero-plot", dir: "auto" }),
-      h = i("div", { class: "hero-dots" }),
-      f = i("div", { class: "hero-button primary focusable", text: "▶  " + sn("home.play") }),
-      p = i("div", { class: "hero-button focusable", text: sn("home.moreInfo") }),
-      g = i("div", { class: "hero-body" }, [
-        i("div", { class: "hero-kicker", text: sn("home.spotlight") }),
-        c,
-        d,
-        m,
-        i("div", { class: "hero-actions" }, [f, p]),
-        h,
-      ]),
-      v = i("video", { class: "hero-video" });
+      c = createElement("h1", {
+        class: "hero-title",
+        dir: "auto",
+      }),
+      d = createElement("div", {
+        class: "hero-meta",
+      }),
+      m = createElement("p", {
+        class: "hero-plot",
+        dir: "auto",
+      }),
+      h = createElement("div", {
+        class: "hero-dots",
+      }),
+      f = createElement("div", {
+        class: "hero-button primary focusable",
+        text: "▶  " + translate("home.play"),
+      }),
+      p = createElement("div", {
+        class: "hero-button focusable",
+        text: translate("home.moreInfo"),
+      }),
+      g = createElement(
+        "div",
+        {
+          class: "hero-body",
+        },
+        [
+          createElement("div", {
+            class: "hero-kicker",
+            text: translate("home.spotlight"),
+          }),
+          c,
+          d,
+          m,
+          createElement(
+            "div",
+            {
+              class: "hero-actions",
+            },
+            [f, p],
+          ),
+          h,
+        ],
+      ),
+      v = createElement("video", {
+        class: "hero-video",
+      });
     (v.setAttribute("playsinline", ""), (v.preload = "auto"), (v.muted = !1 === e.teaserSound));
-    let y = i("div", { class: "hero page-block", "data-focus-memory": "hero" }, [
-        a,
-        l,
-        o,
-        v,
-        i("div", { class: "hero-scrim" }),
-        g,
-      ]),
+    let y = createElement(
+        "div",
+        {
+          class: "hero page-block",
+          "data-focus-memory": "hero",
+        },
+        [
+          a,
+          l,
+          o,
+          v,
+          createElement("div", {
+            class: "hero-scrim",
+          }),
+          g,
+        ],
+      ),
       b = [],
       w = 0,
       x = null,
@@ -2695,7 +3310,11 @@
     function T() {
       h.innerHTML = "";
       for (let e = 0; e < b.length; e++)
-        h.appendChild(i("span", { class: "hero-dot" + (e === w ? " active" : "") }));
+        h.appendChild(
+          createElement("span", {
+            class: "hero-dot" + (e === w ? " active" : ""),
+          }),
+        );
     }
     function L(e) {
       let t = b[e];
@@ -2760,13 +3379,21 @@
     function P(e) {
       return new Promise((t) => {
         let n = new Image();
-        ((n.onload = () => t({ ok: !0, wide: n.naturalWidth / n.naturalHeight >= 1.4 })),
-          (n.onerror = () => t({ ok: !1, wide: !1 })),
+        ((n.onload = () =>
+          t({
+            ok: !0,
+            wide: n.naturalWidth / n.naturalHeight >= 1.4,
+          })),
+          (n.onerror = () =>
+            t({
+              ok: !1,
+              wide: !1,
+            })),
           (n.src = e));
       });
     }
     function M() {
-      return n(this, null, function* () {
+      return runAsync(this, null, function* () {
         let e = yield Vt(),
           t = [];
         for (let n of Ti) {
@@ -2846,7 +3473,7 @@
       {
         node: y,
         load: function () {
-          return n(this, null, function* () {
+          return runAsync(this, null, function* () {
             let e = yield M();
             return !S && (e.length ? (O(), !0) : (y.classList.add("hero-artless"), !1));
           });
@@ -2898,7 +3525,7 @@
     let t = Ei();
     return e ? t.filter((t) => t.kind === e) : t.slice();
   }
-  function Fi(e) {
+  function isFavourite(e) {
     let t = Pi(e);
     return Ei().some((e) => Pi(e) === t);
   }
@@ -2908,12 +3535,12 @@
       i = t.findIndex((e) => Pi(e) === n);
     return -1 !== i && (t.splice(i, 1), Oi(), !0);
   }
-  function Di(e) {
-    return Fi(e)
+  function toggleFavourite(e) {
+    return isFavourite(e)
       ? (qi(e), !1)
       : ((function (e) {
           let t = Ei();
-          !Fi(e) &&
+          !isFavourite(e) &&
             (t.unshift({
               kind: e.kind,
               id: e.id,
@@ -2939,10 +3566,21 @@
     }
     function l(e) {
       "live" === e.kind
-        ? E("player", { channel: e })
+        ? pushRoute("player", {
+            channel: e,
+          })
         : "movie" === e.kind
-          ? E("details", { kind: "movie", id: e.id, item: e })
-          : "series" === e.kind && E("details", { kind: "series", id: e.id, item: e });
+          ? pushRoute("details", {
+              kind: "movie",
+              id: e.id,
+              item: e,
+            })
+          : "series" === e.kind &&
+            pushRoute("details", {
+              kind: "series",
+              id: e.id,
+              item: e,
+            });
     }
     let o = null;
     function u(e, t) {
@@ -2957,7 +3595,11 @@
                 e && ((t.target.__load = null), e());
               }
             },
-            { root: null, rootMargin: "1200px 0px", threshold: 0.01 },
+            {
+              root: null,
+              rootMargin: "1200px 0px",
+              threshold: 0.01,
+            },
           )),
         o.observe(e.node));
     }
@@ -2968,13 +3610,24 @@
             i && i.setFocused(i.node.contains(e.target));
           }),
           (i = Ii({
-            teaser: Z().heroTeaser,
-            teaserSound: Z().heroTeaserSound,
+            teaser: settings().heroTeaser,
+            teaserSound: settings().heroTeaserSound,
             onPlay: (e) =>
-              E("player", {
-                item: { kind: "movie", id: e.id, name: e.name, poster: e.poster, ext: e.ext },
+              pushRoute("player", {
+                item: {
+                  kind: "movie",
+                  id: e.id,
+                  name: e.name,
+                  poster: e.poster,
+                  ext: e.ext,
+                },
               }),
-            onInfo: (e) => E("details", { kind: "movie", id: e.id, item: e }),
+            onInfo: (e) =>
+              pushRoute("details", {
+                kind: "movie",
+                id: e.id,
+                item: e,
+              }),
           })),
           e.add(i.node),
           i.load().catch(() => {
@@ -2985,7 +3638,7 @@
             e.length &&
               a({
                 key: "home-continue",
-                title: sn("home.continue"),
+                title: translate("home.continue"),
                 items: e.map((e) => ({
                   kind: e.kind,
                   id: e.id,
@@ -2996,22 +3649,45 @@
                   ext: e.ext,
                 })),
                 onSelect: (e) => {
-                  let t = hi(e.kind, e.id);
-                  E("player", { item: e, resumeAt: t ? t.position : 0 });
+                  let t = progressFor(e.kind, e.id);
+                  pushRoute("player", {
+                    item: e,
+                    resumeAt: t ? t.position : 0,
+                  });
                 },
               });
           })(),
           (function () {
             let e = Mi();
             e.length &&
-              a({ key: "home-favorites", title: sn("home.favorites"), items: e, onSelect: l });
+              a({
+                key: "home-favorites",
+                title: translate("home.favorites"),
+                items: e,
+                onSelect: l,
+              });
           })(),
           (function () {
-            n(this, null, function* () {
+            runAsync(this, null, function* () {
               let i = [
-                  { kind: "live", categories: zt, streams: Bt, variant: "channel" },
-                  { kind: "movie", categories: Vt, streams: Wt, variant: "poster" },
-                  { kind: "series", categories: Jt, streams: Ht, variant: "poster" },
+                  {
+                    kind: "live",
+                    categories: zt,
+                    streams: Bt,
+                    variant: "channel",
+                  },
+                  {
+                    kind: "movie",
+                    categories: Vt,
+                    streams: Wt,
+                    variant: "poster",
+                  },
+                  {
+                    kind: "series",
+                    categories: Jt,
+                    streams: Ht,
+                    variant: "poster",
+                  },
                 ],
                 r = 3;
               for (let s of i) {
@@ -3032,12 +3708,12 @@
                       onSelect: l,
                     }),
                     c = () =>
-                      n(null, null, function* () {
+                      runAsync(null, null, function* () {
                         try {
                           let n = yield s.streams(o.id);
                           if (t) return;
                           if (!n.length) return void i.node.classList.add("row-empty");
-                          (i.setItems(n), w(e.node, i.firstCard()));
+                          (i.setItems(n), focusInto(e.node, i.firstCard()));
                         } catch (e) {
                           i.node.classList.add("row-empty");
                         }
@@ -3049,7 +3725,10 @@
           })());
       },
       unmount() {
-        ((t = !0), i && (i.stop(), (i = null)), o && (o.disconnect(), (o = null)), r(e.node));
+        ((t = !0),
+          i && (i.stop(), (i = null)),
+          o && (o.disconnect(), (o = null)),
+          clearChildren(e.node));
       },
       initialFocus: () =>
         e.node.querySelector(".hero-button") || e.node.querySelector(".card") || null,
@@ -3058,8 +3737,12 @@
   }
   var Ui = null,
     Ri = null;
-  function Ki(e, t) {
-    (Ui || ((Ui = i("div", { class: "toast" })), document.body.appendChild(Ui)),
+  function showToast(e, t) {
+    (Ui ||
+      ((Ui = createElement("div", {
+        class: "toast",
+      })),
+      document.body.appendChild(Ui)),
       (Ui.textContent = e),
       Ui.classList.add("visible"),
       Ri && clearTimeout(Ri),
@@ -3071,7 +3754,10 @@
     Bi = null;
   function Vi() {
     if (Bi) return Bi;
-    Bi = { intro: {}, fit: {} };
+    Bi = {
+      intro: {},
+      fit: {},
+    };
     try {
       let e = localStorage.getItem(zi);
       if (e) {
@@ -3105,7 +3791,7 @@
   }
   var Gi = ["fit", "fill", "stretch"];
   function Zi(e) {
-    return sn("player." + e);
+    return translate("player." + e);
   }
   function $i(e, t) {
     return e + ":" + t;
@@ -3135,7 +3821,9 @@
   function rr(e) {
     let t = e.channel || e.item,
       n = "live" === t.kind,
-      s = i("video", { class: "player-video" });
+      s = createElement("video", {
+        class: "player-video",
+      });
     s.setAttribute("playsinline", "");
     let a = new (class {
         constructor(e) {
@@ -3157,8 +3845,14 @@
             (this.listeners = Object.create(null)),
             (this.onError = () => this.handleFailure("error")),
             (this.onPlaying = () => this.handlePlaying()),
-            (this.onWaiting = () => this.emit("buffering", { source: this.current })),
-            (this.onEnded = () => this.emit("ended", { source: this.current })),
+            (this.onWaiting = () =>
+              this.emit("buffering", {
+                source: this.current,
+              })),
+            (this.onEnded = () =>
+              this.emit("ended", {
+                source: this.current,
+              })),
             this.video.addEventListener("error", this.onError),
             this.video.addEventListener("playing", this.onPlaying),
             this.video.addEventListener("waiting", this.onWaiting),
@@ -3197,7 +3891,11 @@
             (this.lastAdvance = Date.now()),
             this.releaseMedia());
           let t = this.urlFor(e);
-          (this.emit("loading", { source: e, url: t }), (this.video.src = t));
+          (this.emit("loading", {
+            source: e,
+            url: t,
+          }),
+            (this.video.src = t));
           let n = this.video.play();
           (n && n.catch && n.catch(() => {}),
             (this.startTimer = setTimeout(() => {
@@ -3219,7 +3917,10 @@
               } catch (e) {}
               this.options.resumeAt = 0;
             }
-            (this.emit("playing", { source: this.current }), this.schedulePromotion());
+            (this.emit("playing", {
+              source: this.current,
+            }),
+              this.schedulePromotion());
           }
         }
         startWatchdog() {
@@ -3234,8 +3935,14 @@
                   (this.lastAdvance = e),
                   (this.recoveryStep = 0),
                   this.wasStalled &&
-                    ((this.wasStalled = !1), this.emit("recovered", { source: this.current })),
-                  void this.emit("progress", { position: t, source: this.current })
+                    ((this.wasStalled = !1),
+                    this.emit("recovered", {
+                      source: this.current,
+                    })),
+                  void this.emit("progress", {
+                    position: t,
+                    source: this.current,
+                  })
                 );
               this.started && e - this.lastAdvance > 3500 && this.handleStall();
             }, 500)));
@@ -3243,11 +3950,19 @@
         handleStall() {
           ((this.lastAdvance = Date.now()),
             (this.wasStalled = !0),
-            this.emit("stalled", { source: this.current }));
-          let e = this.nextSource({ degrade: !0 });
+            this.emit("stalled", {
+              source: this.current,
+            }));
+          let e = this.nextSource({
+            degrade: !0,
+          });
           if (e)
             return (
-              this.emit("quality-change", { from: this.current, to: e, reason: "stall" }),
+              this.emit("quality-change", {
+                from: this.current,
+                to: e,
+                reason: "stall",
+              }),
               (this.sourceIndex = this.sources.indexOf(e)),
               void this.openCurrent()
             );
@@ -3256,11 +3971,19 @@
         recover() {
           let e = er[this.recoveryStep];
           if ((this.recoveryStep++, !e))
-            return void this.emit("buffering", { source: this.current, terminal: !0 });
+            return void this.emit("buffering", {
+              source: this.current,
+              terminal: !0,
+            });
           let t = this.video.currentTime;
           if (
-            (this.emit("recovering", { source: this.current, step: e, position: t }), "nudge" !== e)
-          )
+            (this.emit("recovering", {
+              source: this.current,
+              step: e,
+              position: t,
+            }),
+            "nudge" !== e)
+          ) {
             if ("seek" !== e)
               ((this.options.resumeAt = t),
                 this.attempted.delete(this.current.id),
@@ -3272,7 +3995,7 @@
               let e = this.video.play();
               e && e.catch && e.catch(() => {});
             }
-          else {
+          } else {
             let e = this.video.play();
             e && e.catch && e.catch(() => {});
           }
@@ -3282,7 +4005,11 @@
           let t = this.current,
             n = this.nextSource({});
           if (!n) return this.exhausted();
-          (this.emit("source-failed", { source: t, reason: e, next: n }),
+          (this.emit("source-failed", {
+            source: t,
+            reason: e,
+            next: n,
+          }),
             (this.sourceIndex = this.sources.indexOf(n)),
             this.openCurrent());
         }
@@ -3306,19 +4033,28 @@
                   .filter((e) => e.rank < (this.current ? this.current.rank : 0))
                   .sort((e, t) => t.rank - e.rank)[0];
                 e &&
-                  (this.emit("quality-change", { from: this.current, to: e, reason: "promote" }),
+                  (this.emit("quality-change", {
+                    from: this.current,
+                    to: e,
+                    reason: "promote",
+                  }),
                   this.attempted.delete(e.id),
                   (this.sourceIndex = this.sources.indexOf(e)),
                   this.openCurrent());
               }, 9e4)));
         }
         exhausted() {
-          (this.emit("exhausted", { attempted: this.attempted.size }), this.stop());
+          (this.emit("exhausted", {
+            attempted: this.attempted.size,
+          }),
+            this.stop());
         }
         togglePause() {
           return (
             this.video.paused ? this.video.play() : this.video.pause(),
-            this.emit("paused-changed", { paused: this.video.paused }),
+            this.emit("paused-changed", {
+              paused: this.video.paused,
+            }),
             this.video.paused
           );
         }
@@ -3334,7 +4070,13 @@
           } catch (e) {
             return !1;
           }
-          return (this.emit("seeked", { position: t, duration: this.video.duration }), !0);
+          return (
+            this.emit("seeked", {
+              position: t,
+              duration: this.video.duration,
+            }),
+            !0
+          );
         }
         get position() {
           return this.video.currentTime || 0;
@@ -3383,51 +4125,133 @@
       h = 0,
       f = 0,
       p = !1,
-      g = i("div", { class: "osd-title", dir: "auto", text: t.name }),
-      y = i("div", { class: "osd-subtitle" }),
-      b = i("div", { class: "osd-quality" }),
-      w = i("div", { class: "osd-bar-fill" }),
-      x = i("div", { class: "osd-bar-knob" }),
-      k = i("div", { class: "osd-bar" }, [w, x]),
-      C = i("span", { class: "osd-time", text: "--:--" }),
-      S = i("span", { class: "osd-time osd-time-total", text: "--:--" }),
-      _ = i("div", { class: "osd-button focusable", text: "❚❚" }),
-      T = i("div", { class: "osd-button focusable", text: "★" }),
-      L = i("div", { class: "osd-button osd-button-wide focusable", text: sn("player.quality") }),
+      g = createElement("div", {
+        class: "osd-title",
+        dir: "auto",
+        text: t.name,
+      }),
+      y = createElement("div", {
+        class: "osd-subtitle",
+      }),
+      b = createElement("div", {
+        class: "osd-quality",
+      }),
+      w = createElement("div", {
+        class: "osd-bar-fill",
+      }),
+      x = createElement("div", {
+        class: "osd-bar-knob",
+      }),
+      k = createElement(
+        "div",
+        {
+          class: "osd-bar",
+        },
+        [w, x],
+      ),
+      C = createElement("span", {
+        class: "osd-time",
+        text: "--:--",
+      }),
+      S = createElement("span", {
+        class: "osd-time osd-time-total",
+        text: "--:--",
+      }),
+      _ = createElement("div", {
+        class: "osd-button focusable",
+        text: "❚❚",
+      }),
+      T = createElement("div", {
+        class: "osd-button focusable",
+        text: "★",
+      }),
+      L = createElement("div", {
+        class: "osd-button osd-button-wide focusable",
+        text: translate("player.quality"),
+      }),
       I = e.episodes || null,
       N = null == e.episodeIndex ? -1 : e.episodeIndex,
       A = !!(I && N >= 0 && N < I.length - 1),
-      E = i("div", { class: "osd-button osd-button-wide focusable", text: sn("player.skipIntro") }),
-      O = i("div", {
+      E = createElement("div", {
         class: "osd-button osd-button-wide focusable",
-        text: sn("player.nextEpisode"),
+        text: translate("player.skipIntro"),
       }),
-      F = i("div", { class: "osd-button osd-button-wide focusable", text: sn("player.fit") }),
-      q = i("div", { class: "osd-controls", "data-focus-memory": "osd" }, [
-        _,
-        T,
-        n ? null : E,
-        A ? O : null,
-        F,
-        L,
-      ]),
-      D = i("div", { class: "credits-prompt", hidden: "hidden" }, [
-        i("div", { class: "credits-label", text: sn("player.upNext") }),
-        i("div", { class: "credits-title", dir: "auto", text: "" }),
-        i("div", {
-          class: "button primary focusable credits-play",
-          text: "▶  " + sn("player.playNext"),
-        }),
-      ]),
+      O = createElement("div", {
+        class: "osd-button osd-button-wide focusable",
+        text: translate("player.nextEpisode"),
+      }),
+      F = createElement("div", {
+        class: "osd-button osd-button-wide focusable",
+        text: translate("player.fit"),
+      }),
+      q = createElement(
+        "div",
+        {
+          class: "osd-controls",
+          "data-focus-memory": "osd",
+        },
+        [_, T, n ? null : E, A ? O : null, F, L],
+      ),
+      D = createElement(
+        "div",
+        {
+          class: "credits-prompt",
+          hidden: "hidden",
+        },
+        [
+          createElement("div", {
+            class: "credits-label",
+            text: translate("player.upNext"),
+          }),
+          createElement("div", {
+            class: "credits-title",
+            dir: "auto",
+            text: "",
+          }),
+          createElement("div", {
+            class: "button primary focusable credits-play",
+            text: "▶  " + translate("player.playNext"),
+          }),
+        ],
+      ),
       j = D.querySelector(".credits-title"),
       U = D.querySelector(".credits-play"),
-      R = i("div", { class: "osd-progress" }, [C, k, S]),
-      K = i("div", { class: "osd" }, [
-        i("div", { class: "osd-gradient" }),
-        i("div", { class: "osd-body" }, [g, y, b, n ? null : R, q]),
-      ]),
-      z = i("div", { class: "player-message" }),
-      B = i("div", { class: "player", "data-focus-trap": "" }, [s, z, D, K]);
+      R = createElement(
+        "div",
+        {
+          class: "osd-progress",
+        },
+        [C, k, S],
+      ),
+      K = createElement(
+        "div",
+        {
+          class: "osd",
+        },
+        [
+          createElement("div", {
+            class: "osd-gradient",
+          }),
+          createElement(
+            "div",
+            {
+              class: "osd-body",
+            },
+            [g, y, b, n ? null : R, q],
+          ),
+        ],
+      ),
+      z = createElement("div", {
+        class: "player-message",
+      }),
+      B = createElement(
+        "div",
+        {
+          class: "player",
+          "data-focus-trap": "",
+        },
+        [s, z, D, K],
+      );
     function V() {
       (K.classList.add("visible"), l && clearTimeout(l), (l = setTimeout(W, 4500)));
     }
@@ -3438,7 +4262,7 @@
       ((z.textContent = t || ""), z.classList.toggle("visible", !!t));
     }
     function H() {
-      T.classList.toggle("active", Fi(t));
+      T.classList.toggle("active", isFavourite(t));
     }
     function X() {
       if (n || null !== d) return;
@@ -3448,7 +4272,7 @@
           let e = a.duration;
           if (!e) return;
           let t = e - a.position,
-            n = Z().nextEpisodePromptSeconds,
+            n = settings().nextEpisodePromptSeconds,
             i = t > 0 && t <= n;
           if (i !== !D.hidden)
             if (i) {
@@ -3456,8 +4280,8 @@
               ((j.textContent =
                 "S" + e.season + "E" + e.episodeNumber + (e.title ? " · " + e.title : "")),
                 (D.hidden = !1),
-                v(U));
-            } else ((D.hidden = !0), m() === U && v(_));
+                focusElement(U));
+            } else ((D.hidden = !0), focusedElement() === U && focusElement(_));
         })());
     }
     function G(e, t) {
@@ -3489,10 +4313,19 @@
     }
     function Q() {
       let t = Xi(e.seriesId);
-      E.textContent = null !== t ? sn("player.skipIntro") : "Skip +" + Z().introSkipSeconds + "s";
+      E.textContent =
+        null !== t ? translate("player.skipIntro") : "Skip +" + settings().introSkipSeconds + "s";
     }
     function Y() {
-      return e.seriesId ? { kind: "series", id: e.seriesId } : { kind: t.kind, id: t.id };
+      return e.seriesId
+        ? {
+            kind: "series",
+            id: e.seriesId,
+          }
+        : {
+            kind: t.kind,
+            id: t.id,
+          };
     }
     function ee() {
       let e = Y(),
@@ -3505,7 +4338,7 @@
       if (!A) return;
       let n = I[N + 1];
       (ne(),
-        P("player", {
+        replaceRoute("player", {
           item: {
             kind: "episode",
             id: n.id,
@@ -3544,15 +4377,23 @@
       return e.url
         ? e.url
         : n
-          ? Gt(e.id, Z().liveFormat, e.item || t)
+          ? Gt(e.id, settings().liveFormat, e.item || t)
           : "episode" === t.kind
             ? (function (e, t) {
-                return Rt().episodeUrl(e, t);
+                return activeAdapter().episodeUrl(e, t);
               })(e.id, e.ext || t.ext)
             : Zt(e.id, e.ext || t.ext);
     }
     function re() {
-      if (!n) return [{ id: t.id, name: t.name, ext: t.ext, rank: 0 }];
+      if (!n)
+        return [
+          {
+            id: t.id,
+            name: t.name,
+            ext: t.ext,
+            rank: 0,
+          },
+        ];
       if (t.sources && t.sources.length)
         return t.sources.map((e) => ({
           id: e.id,
@@ -3563,8 +4404,16 @@
           item: t,
         }));
       if (t.url || !Kt().singleConnection)
-        return [{ id: t.id, name: t.name, url: t.url, item: t, rank: 0 }];
-      let e = Z().preferLowerBitrate ? 1 : 0,
+        return [
+          {
+            id: t.id,
+            name: t.name,
+            url: t.url,
+            item: t,
+            rank: 0,
+          },
+        ];
+      let e = settings().preferLowerBitrate ? 1 : 0,
         i = (function (e, t) {
           let n = vn(e),
             i = null == t ? 1 : t,
@@ -3617,15 +4466,19 @@
           ne();
           if (A) return void te();
           try {
-            if (e.seriesId) return void P("details", { kind: "series", id: e.seriesId });
+            if (e.seriesId)
+              return void replaceRoute("details", {
+                kind: "series",
+                id: e.seriesId,
+              });
             if (t && t.id)
-              return void P("details", {
+              return void replaceRoute("details", {
                 kind: "episode" === t.kind ? "series" : t.kind || "movie",
                 id: t.id,
                 item: t,
               });
           } catch (_) {}
-          return void M();
+          return void goBack();
         }
         __lr(a.__pos || q || 0);
       }),
@@ -3635,8 +4488,8 @@
           let e = a.togglePause();
           ((_.textContent = e ? "▶" : "❚❚"), e && ne(), V());
         } else if (s === T) {
-          let e = Di(t);
-          (H(), Ki(e ? "Added to favourites" : "Removed from favourites"), V());
+          let e = toggleFavourite(t);
+          (H(), showToast(e ? "Added to favourites" : "Removed from favourites"), V());
         } else if (s === E)
           !(function () {
             let t,
@@ -3644,7 +4497,7 @@
               i = a.position;
             if (null !== n && n > i) (a.seekTo(n), (t = n));
             else {
-              let e = Z().introSkipSeconds;
+              let e = settings().introSkipSeconds;
               if (!a.seekBy(e)) return;
               t = i + e;
             }
@@ -3655,22 +4508,27 @@
           !(function () {
             let e = Y(),
               t = Yi(e.kind, e.id);
-            (ee(), Ki(Zi(t)), V());
+            (ee(), showToast(Zi(t)), V());
           })();
         else if (s === L)
           !(function () {
             let e = vn(t);
-            (r(se),
-              se.appendChild(i("div", { class: "quality-title", text: sn("player.quality") })),
+            (clearChildren(se),
+              se.appendChild(
+                createElement("div", {
+                  class: "quality-title",
+                  text: translate("player.quality"),
+                }),
+              ),
               e.length <= 1 &&
                 se.appendChild(
-                  i("div", {
+                  createElement("div", {
                     class: "quality-empty",
                     text: "Only one source available for this channel.",
                   }),
                 ));
             for (let t of e) {
-              let e = i("div", {
+              let e = createElement("div", {
                 class:
                   "quality-option focusable" +
                   (a.current && a.current.id === t.id ? " active" : ""),
@@ -3681,35 +4539,45 @@
             }
             ((se.hidden = !1),
               l && (clearTimeout(l), (l = null)),
-              v(se.querySelector(".quality-option")));
+              focusElement(se.querySelector(".quality-option")));
           })();
         else if (s.classList.contains("quality-option")) {
           let e = s.__source;
           ae();
           let t = re().filter((t) => t.id !== e.id);
-          (a.play([e].concat(t), ie, { noPromote: !0 }), Ki("Quality: " + (e.quality || e.name)));
+          (a.play([e].concat(t), ie, {
+            noPromote: !0,
+          }),
+            showToast("Quality: " + (e.quality || e.name)));
         }
       }));
-    let se = i("div", { class: "quality-panel", hidden: "hidden", "data-focus-memory": "quality" });
+    let se = createElement("div", {
+      class: "quality-panel",
+      hidden: "hidden",
+      "data-focus-memory": "quality",
+    });
     function ae() {
-      ((se.hidden = !0), v(L), V());
+      ((se.hidden = !0), focusElement(L), V());
     }
     function __lr(r) {
       if (p) return;
       if (a.__ok && Date.now() - a.__ok >= 5e3) a.__rt = 0;
       a.__rt = (a.__rt || 0) + 1;
       if (a.__rt > 3) {
-        J(0, sn("player.unavailable"));
+        J(0, translate("player.unavailable"));
         return;
       }
-      J(0, sn("welcome.connecting"));
+      J(0, translate("welcome.connecting"));
       a.__t && clearTimeout(a.__t);
       a.__t = setTimeout(() => {
         if (p) return;
         try {
-          a.play(re(), ie, { resumeAt: r > 2 ? r : 0, noPromote: !n });
+          a.play(re(), ie, {
+            resumeAt: r > 2 ? r : 0,
+            noPromote: !n,
+          });
         } catch (e) {
-          J(0, sn("player.unavailable"));
+          J(0, translate("player.unavailable"));
         }
       }, 600);
     }
@@ -3730,7 +4598,11 @@
           n || Q(),
           (function () {
             let t = re();
-            (J(0, ""), a.play(t, ie, { resumeAt: e.resumeAt || 0, noPromote: !n }));
+            (J(0, ""),
+              a.play(t, ie, {
+                resumeAt: e.resumeAt || 0,
+                noPromote: !n,
+              }));
           })(),
           V(),
           (c = setInterval(X, 500)),
@@ -3744,7 +4616,7 @@
           u && clearTimeout(u),
           c && clearInterval(c),
           a.destroy(),
-          r(B));
+          clearChildren(B));
       },
       initialFocus: () => _,
       onKey: function (i) {
@@ -3752,7 +4624,7 @@
           return se.hidden
             ? K.classList.contains("visible")
               ? (W(), !0)
-              : (ne(), M(), !0)
+              : (ne(), goBack(), !0)
             : (ae(), !0);
         if (!se.hidden) return !1;
         let r = K.classList.contains("visible");
@@ -3762,7 +4634,7 @@
           let e = a.togglePause();
           return ((_.textContent = e ? "▶" : "❚❚"), e && ne(), V(), !0);
         }
-        if (i === On) return (ne(), M(), !0);
+        if (i === On) return (ne(), goBack(), !0);
         if (n && e.siblings && e.siblings.length > 1) {
           let n = 0;
           if ((i === bn || i === Fn ? (n = -1) : (i === xn || i === qn) && (n = 1), 0 !== n)) {
@@ -3770,12 +4642,17 @@
               r = ((null == e.index ? 0 : e.index) + n + i) % i;
             return (
               ne(),
-              P("player", { channel: e.siblings[r], siblings: e.siblings, index: r, previous: t }),
+              replaceRoute("player", {
+                channel: e.siblings[r],
+                siblings: e.siblings,
+                index: r,
+                previous: t,
+              }),
               !0
             );
           }
         }
-        return !D.hidden && Un(i) ? (te(), !0) : !r && (V(), v(_), !0);
+        return !D.hidden && Un(i) ? (te(), !0) : !r && (V(), focusElement(_), !0);
       },
     };
   }
@@ -3784,31 +4661,71 @@
   }
   function ar(e) {
     let t = ti({}),
-      s = i("div", { class: "details" });
+      s = createElement("div", {
+        class: "details",
+      });
     t.add(s);
     let a = !1,
       l = null,
       o = 0,
-      u = i("div", { class: "details-hero" }),
-      c = i("div", { class: "poster poster-2x3 details-poster" }),
-      d = i("h1", { class: "details-title", dir: "auto", text: e.item ? e.item.name : "" }),
-      m = i("div", { class: "details-meta" }),
-      h = i("p", { class: "details-plot", dir: "auto" }),
-      f = i("div", { class: "button primary focusable details-play", text: "▶  Play" }),
-      p = i("div", { class: "button focusable", text: "★  Favourite" }),
-      g = i("div", { class: "details-actions", "data-focus-memory": "details-actions" }, [f, p]),
-      v = i("div", { class: "details-info" }, [d, m, h, g]);
+      u = createElement("div", {
+        class: "details-hero",
+      }),
+      c = createElement("div", {
+        class: "poster poster-2x3 details-poster",
+      }),
+      d = createElement("h1", {
+        class: "details-title",
+        dir: "auto",
+        text: e.item ? e.item.name : "",
+      }),
+      m = createElement("div", {
+        class: "details-meta",
+      }),
+      h = createElement("p", {
+        class: "details-plot",
+        dir: "auto",
+      }),
+      f = createElement("div", {
+        class: "button primary focusable details-play",
+        text: "▶  Play",
+      }),
+      p = createElement("div", {
+        class: "button focusable",
+        text: "★  Favourite",
+      }),
+      g = createElement(
+        "div",
+        {
+          class: "details-actions",
+          "data-focus-memory": "details-actions",
+        },
+        [f, p],
+      ),
+      v = createElement(
+        "div",
+        {
+          class: "details-info",
+        },
+        [d, m, h, g],
+      );
     (u.appendChild(c), u.appendChild(v), s.appendChild(u));
-    let y = i("div", { class: "details-episodes" });
+    let y = createElement("div", {
+      class: "details-episodes",
+    });
     function x() {
-      let t = e.item || { kind: e.kind, id: e.id, name: d.textContent };
-      p.classList.toggle("active", Fi(t));
+      let t = e.item || {
+        kind: e.kind,
+        id: e.id,
+        name: d.textContent,
+      };
+      p.classList.toggle("active", isFavourite(t));
     }
     function k(e, t) {
       (c.setAttribute("data-src", e || ""), c.setAttribute("data-title", t || ""), ai(c));
     }
     function C() {
-      return n(this, null, function* () {
+      return runAsync(this, null, function* () {
         let t = yield Xt(e.id);
         if (a) return;
         ((l = t),
@@ -3821,16 +4738,16 @@
           t.rating ? "★ " + t.rating.toFixed(1) : null,
         ].filter(Boolean);
         ((m.textContent = n.join("   ·   ")), (h.textContent = t.plot || ""));
-        let i = hi("movie", e.id);
+        let i = progressFor("movie", e.id);
         (i && (f.textContent = "▶  Resume  ·  " + Math.floor(i.position / 60) + " min in"),
           x(),
-          w(s, f));
+          focusInto(s, f));
       });
     }
     function S() {
-      return n(this, null, function* () {
+      return runAsync(this, null, function* () {
         let t = yield (function (e) {
-          return Rt().seriesInfo(e);
+          return activeAdapter().seriesInfo(e);
         })(e.id);
         if (a) return;
         ((l = t),
@@ -3847,15 +4764,18 @@
           (f.textContent = "▶  Play"),
           x(),
           _(),
-          w(s, f));
+          focusInto(s, f));
       });
     }
     function _() {
-      if ((r(y), !l || !l.seasons.length)) return;
+      if ((clearChildren(y), !l || !l.seasons.length)) return;
       if (l.seasons.length > 1) {
-        let e = i("div", { class: "season-strip", "data-focus-memory": "seasons" });
+        let e = createElement("div", {
+          class: "season-strip",
+          "data-focus-memory": "seasons",
+        });
         (l.seasons.forEach((t, n) => {
-          let r = i("div", {
+          let r = createElement("div", {
             class: "season-button focusable" + (n === o ? " active" : ""),
             text: "Season " + t.number,
           });
@@ -3863,45 +4783,76 @@
         }),
           y.appendChild(e));
       }
-      let e = i("div", { class: "episode-list", "data-focus-memory": "episodes" });
+      let e = createElement("div", {
+        class: "episode-list",
+        "data-focus-memory": "episodes",
+      });
       for (let t of l.seasons[o].episodes) e.appendChild(T(t));
       y.appendChild(e);
     }
     function T(e) {
-      let t = i("div", {
+      let t = createElement("div", {
         class: "poster poster-16x9 episode-still",
         "data-src": e.still || "",
         "data-title": "",
       });
       ai(t);
-      let n = hi("episode", e.id);
+      let n = progressFor("episode", e.id);
       if (n) {
         let e = pi(n);
         t.appendChild(
-          i("div", { class: "card-progress" }, [
-            i("div", { class: "card-progress-fill", style: "width:" + Math.round(100 * e) + "%" }),
-          ]),
+          createElement(
+            "div",
+            {
+              class: "card-progress",
+            },
+            [
+              createElement("div", {
+                class: "card-progress-fill",
+                style: "width:" + Math.round(100 * e) + "%",
+              }),
+            ],
+          ),
         );
       }
-      let r = i("div", { class: "episode-row focusable" }, [
-        t,
-        i("div", { class: "episode-text" }, [
-          i("div", {
-            class: "episode-title",
-            dir: "auto",
-            text: e.episodeNumber + ".  " + (e.title || "Episode " + e.episodeNumber),
+      let r = createElement(
+        "div",
+        {
+          class: "episode-row focusable",
+        },
+        [
+          t,
+          createElement(
+            "div",
+            {
+              class: "episode-text",
+            },
+            [
+              createElement("div", {
+                class: "episode-title",
+                dir: "auto",
+                text: e.episodeNumber + ".  " + (e.title || "Episode " + e.episodeNumber),
+              }),
+              createElement("div", {
+                class: "episode-plot",
+                dir: "auto",
+                text: e.plot || "",
+              }),
+            ],
+          ),
+          createElement("div", {
+            class: "episode-duration",
+            text: sr(e.durationSecs) || "",
           }),
-          i("div", { class: "episode-plot", dir: "auto", text: e.plot || "" }),
-        ]),
-        i("div", { class: "episode-duration", text: sr(e.durationSecs) || "" }),
-      ]);
+        ],
+      );
       return ((r.__episode = e), r);
     }
     function L(t) {
-      let n = hi("episode", t.id),
+      let n = progressFor("episode", t.id),
         i = l.seasons.filter((e) => e.number === t.season)[0],
         r = i ? i.episodes : [t];
-      E("player", {
+      pushRoute("player", {
         item: {
           kind: "episode",
           id: t.id,
@@ -3930,14 +4881,14 @@
                   t = 0;
                 for (let n of l.seasons)
                   for (let i of n.episodes) {
-                    let n = hi("episode", i.id);
+                    let n = progressFor("episode", i.id);
                     n && n.updatedAt > t && ((t = n.updatedAt), (e = i));
                   }
                 L(e || l.seasons[0].episodes[0]);
               })()
             : (function () {
-                let t = hi("movie", e.id);
-                E("player", {
+                let t = progressFor("movie", e.id);
+                pushRoute("player", {
                   item: {
                     kind: "movie",
                     id: e.id,
@@ -3949,13 +4900,22 @@
                 });
               })());
         if (n === p) {
-          let t = Di(
-            e.item || { kind: e.kind, id: e.id, name: d.textContent, poster: l ? l.poster : null },
+          let t = toggleFavourite(
+            e.item || {
+              kind: e.kind,
+              id: e.id,
+              name: d.textContent,
+              poster: l ? l.poster : null,
+            },
           );
-          return (x(), void Ki(t ? "Added to favourites" : "Removed from favourites"));
+          return (x(), void showToast(t ? "Added to favourites" : "Removed from favourites"));
         }
         if (n.classList.contains("season-button"))
-          return ((o = n.__seasonIndex), _(), void b(y.querySelector(".season-button.active")));
+          return (
+            (o = n.__seasonIndex),
+            _(),
+            void ensureFocus(y.querySelector(".season-button.active"))
+          );
         let i = n.closest(".episode-row");
         i && L(i.__episode);
       }),
@@ -3966,7 +4926,9 @@
               ("series" === e.kind ? S : C)().catch(function (err) {
                 if (a) return;
                 var off = !!(err && String(err.message || err).indexOf("__NOAPI__") >= 0);
-                h.textContent = off ? sn("details.offline") : sn("details.couldNotLoad");
+                h.textContent = off
+                  ? translate("details.offline")
+                  : translate("details.couldNotLoad");
                 if (k < 20)
                   setTimeout(
                     function () {
@@ -3978,7 +4940,7 @@
             })(0));
         },
         unmount() {
-          ((a = !0), r(t.node));
+          ((a = !0), clearChildren(t.node));
         },
         initialFocus: () => f,
         onKey: () => !1,
@@ -4014,43 +4976,79 @@
     return t ? (t.ok ? -1 : Date.now() - t.at > 432e5 ? 0 : 1) : 0;
   }
   function mr() {
-    let e = i("video", { class: "preview-video" });
+    let e = createElement("video", {
+      class: "preview-video",
+    });
     (e.setAttribute("playsinline", ""), (e.muted = !1));
-    let t = i("div", { class: "poster poster-16x9 preview-poster" }),
-      n = i("div", { class: "preview-name", dir: "auto", text: "" }),
-      s = i("div", { class: "preview-hint", text: sn("browse.pressOkPreview") }),
-      a = i("div", { class: "preview-frame" }, [t, e]),
-      l = i("div", { class: "preview-pane" }, [
-        i("div", { class: "pane-title", text: sn("browse.preview") }),
-        a,
-        n,
-        s,
-      ]),
+    let t = createElement("div", {
+        class: "poster poster-16x9 preview-poster",
+      }),
+      n = createElement("div", {
+        class: "preview-name",
+        dir: "auto",
+        text: "",
+      }),
+      s = createElement("div", {
+        class: "preview-hint",
+        text: translate("browse.pressOkPreview"),
+      }),
+      a = createElement(
+        "div",
+        {
+          class: "preview-frame",
+        },
+        [t, e],
+      ),
+      l = createElement(
+        "div",
+        {
+          class: "preview-pane",
+        },
+        [
+          createElement("div", {
+            class: "pane-title",
+            text: translate("browse.preview"),
+          }),
+          a,
+          n,
+          s,
+        ],
+      ),
       o = null,
       u = null,
       c = [],
       d = 0;
     function m() {
       (a.classList.add("preview-playing"),
-        (s.textContent = sn("browse.pressOkFull")),
+        (s.textContent = translate("browse.pressOkFull")),
         u && (clearTimeout(u), (u = null)),
         o &&
           (function (e) {
             if (!e) return;
-            ((ur()[e] = { ok: !0, at: Date.now(), fails: 0 }), cr());
+            ((ur()[e] = {
+              ok: !0,
+              at: Date.now(),
+              fails: 0,
+            }),
+              cr());
           })(o));
     }
     function h() {
       if ((u && (clearTimeout(u), (u = null)), d < c.length - 1))
         return (d++, (s.textContent = "Trying another source…"), void f());
       (a.classList.remove("preview-playing"),
-        (s.textContent = sn("browse.noResponse")),
+        (s.textContent = translate("browse.noResponse")),
         o &&
           (function (e) {
             if (!e) return;
             let t = ur(),
               n = t[e];
-            ((t[e] = { ok: !1, at: Date.now(), fails: ((n && n.fails) || 0) + 1 }), cr());
+            ((t[e] = {
+              ok: !1,
+              at: Date.now(),
+              fails: ((n && n.fails) || 0) + 1,
+            }),
+              cr());
           })(o),
         (o = null));
     }
@@ -4083,12 +5081,12 @@
           e &&
             (o && o !== e.id && p(),
             (n.textContent = e.name),
-            o || (s.textContent = sn("browse.pressOkPreview")),
+            o || (s.textContent = translate("browse.pressOkPreview")),
             t.setAttribute("data-src", e.logo || ""),
             t.setAttribute("data-title", e.name || ""),
             (t.style.backgroundImage = ""),
             t.classList.remove("poster-loaded", "poster-fallback"),
-            r(t),
+            clearChildren(t),
             ai(t));
         },
         play: function (e, t) {
@@ -4096,7 +5094,16 @@
             !(
               !e ||
               (p(),
-              (c = e.sources && e.sources.length ? e.sources.slice() : t ? [{ url: t }] : []),
+              (c =
+                e.sources && e.sources.length
+                  ? e.sources.slice()
+                  : t
+                    ? [
+                        {
+                          url: t,
+                        },
+                      ]
+                    : []),
               !c.length)
             ) &&
             ((d = 0), (o = e.id), (n.textContent = e.name), (s.textContent = "Starting…"), f(), !0)
@@ -4122,11 +5129,14 @@
       .trim();
   }
   function fr(e) {
-    return e.map((e) => ({ item: e, key: hr(e.name) }));
+    return e.map((e) => ({
+      item: e,
+      key: hr(e.name),
+    }));
   }
   var pr = (e) => new Promise((t) => setTimeout(t, e));
   function gr(e, t) {
-    return n(this, null, function* () {
+    return runAsync(this, null, function* () {
       let n = yield e(),
         i = [];
       for (let e of n) {
@@ -4147,11 +5157,19 @@
     return vr
       ? Promise.resolve(vr)
       : yr ||
-          (yr = n(null, null, function* () {
+          (yr = runAsync(null, null, function* () {
             let e = yield gr(zt, Bt),
               t = yield gr(Vt, Wt),
               n = yield gr(Jt, Ht);
-            return ((vr = { live: fr(e), movies: fr(t), series: fr(n) }), (yr = null), vr);
+            return (
+              (vr = {
+                live: fr(e),
+                movies: fr(t),
+                series: fr(n),
+              }),
+              (yr = null),
+              vr
+            );
           }));
   }
   var xr = null,
@@ -4168,12 +5186,12 @@
     return n ? r.concat(s).slice(0, n) : r.concat(s);
   }
   function Sr(e) {
-    return n(this, null, function* () {
+    return runAsync(this, null, function* () {
       if ("freetv" === e)
         return xr
           ? Promise.resolve(xr)
           : kr ||
-              (kr = n(null, null, function* () {
+              (kr = runAsync(null, null, function* () {
                 let e = yield St(),
                   t = Object.create(null),
                   n = [];
@@ -4198,14 +5216,19 @@
       o = e.language || "ar",
       u = null,
       c = [],
-      d = i("input", {
+      d = createElement("input", {
         class: "field-input section-search-input",
         type: "text",
         readonly: "readonly",
         placeholder: "Search…",
       }),
-      m = i("div", { class: "section-search-status", text: "" }),
-      h = i("div", { class: "section-search-results" }),
+      m = createElement("div", {
+        class: "section-search-status",
+        text: "",
+      }),
+      h = createElement("div", {
+        class: "section-search-results",
+      }),
       f = Jn({
         language: o,
         suggest: (e) => (e ? (u ? Zn(u, e, 6) : []) : Xn().slice(0, 6)),
@@ -4215,16 +5238,22 @@
         onSubmit: () => {
           Gn(d.value);
           let e = h.querySelector(".channel-row, .card");
-          e && v(e);
+          e && focusElement(e);
         },
       });
     f.setTarget(d);
-    let p = i("div", { class: "section-search" }, [d, f.node, m, h]),
+    let p = createElement(
+        "div",
+        {
+          class: "section-search",
+        },
+        [d, f.node, m, h],
+      ),
       g = a(
         () =>
-          n(null, null, function* () {
+          runAsync(null, null, function* () {
             let e = d.value.trim();
-            if ((r(h), e.length < 2))
+            if ((clearChildren(h), e.length < 2))
               return ((m.textContent = "Type at least two characters."), void (c = []));
             if (!u) {
               m.textContent = "Preparing…";
@@ -4236,7 +5265,7 @@
               f.refreshSuggestions();
             }
             if (d.value.trim() === e) {
-              if (((c = Cr(u, e, 200)), r(h), !c.length))
+              if (((c = Cr(u, e, 200)), clearChildren(h), !c.length))
                 return void (m.textContent = "Nothing found for “" + e + "”.");
               m.textContent =
                 c.length >= 200
@@ -4267,7 +5296,7 @@
         },
         reset() {
           ((d.value = ""),
-            r(h),
+            clearChildren(h),
             (c = []),
             (m.textContent = "Type at least two characters."),
             f.refreshSuggestions());
@@ -4285,8 +5314,18 @@
       defaultCategory: /bein\s*sport.*\[\s*hd\s*\]/i,
       defaultItem: /bein\s*sports?\s*1\b/i,
     },
-    movies: { title: "Movies", categories: () => Vt(), items: (e) => Wt(e), layout: "grid" },
-    series: { title: "Series", categories: () => Jt(), items: (e) => Ht(e), layout: "grid" },
+    movies: {
+      title: "Movies",
+      categories: () => Vt(),
+      items: (e) => Wt(e),
+      layout: "grid",
+    },
+    series: {
+      title: "Series",
+      categories: () => Jt(),
+      items: (e) => Ht(e),
+      layout: "grid",
+    },
   };
   function Lr(e) {
     let t = Tr[e.kind],
@@ -4295,28 +5334,64 @@
       l = 0,
       o = !1,
       u = !1,
-      c = i("div", {
+      c = createElement("div", {
         class: "category-button category-search focusable",
         text: "⌕   Search " + t.title,
       }),
-      d = i("div", { class: "pane-scroll" }),
-      h = i("div", { class: "category-pane", "data-focus-memory": "browse-cats" }, [
-        i("div", { class: "pane-title", text: "Categories" }),
-        c,
-        d,
-      ]),
-      f = i("div", { class: "pane-scroll" }),
-      p = i("div", { class: "pane-title", text: "" }),
-      g = i("div", { class: "channel-pane", "data-focus-memory": "browse-items" }, [p, f]),
+      d = createElement("div", {
+        class: "pane-scroll",
+      }),
+      h = createElement(
+        "div",
+        {
+          class: "category-pane",
+          "data-focus-memory": "browse-cats",
+        },
+        [
+          createElement("div", {
+            class: "pane-title",
+            text: "Categories",
+          }),
+          c,
+          d,
+        ],
+      ),
+      f = createElement("div", {
+        class: "pane-scroll",
+      }),
+      p = createElement("div", {
+        class: "pane-title",
+        text: "",
+      }),
+      g = createElement(
+        "div",
+        {
+          class: "channel-pane",
+          "data-focus-memory": "browse-items",
+        },
+        [p, f],
+      ),
       y = "list" === t.layout ? mr() : null,
       b = _r({
         kind: e.kind,
         renderRow: (e) =>
-          "grid" === t.layout ? vi(e) : bi(e, { showNumber: Z().showChannelNumbers }),
+          "grid" === t.layout
+            ? vi(e)
+            : bi(e, {
+                showNumber: settings().showChannelNumbers,
+              }),
         onOpen: (e, t) => {
           "live" === e.kind
-            ? E("player", { channel: e, siblings: t, index: t.indexOf(e) })
-            : E("details", { kind: e.kind, id: e.id, item: e });
+            ? pushRoute("player", {
+                channel: e,
+                siblings: t,
+                index: t.indexOf(e),
+              })
+            : pushRoute("details", {
+                kind: e.kind,
+                id: e.id,
+                item: e,
+              });
         },
       });
     function x(e) {
@@ -4328,9 +5403,11 @@
         k.classList.toggle("searching", e));
     }
     b.node.hidden = !0;
-    let k = i(
+    let k = createElement(
       "div",
-      { class: "split" + (y ? " split-with-preview" : "") },
+      {
+        class: "split" + (y ? " split-with-preview" : ""),
+      },
       y ? [h, g, y.node] : [h, g],
     );
     function C(e, t, n, i) {
@@ -4368,7 +5445,7 @@
           ((l = n),
             (s = 0),
             a.clear(),
-            r(e),
+            clearChildren(e),
             (e.style.position = "relative"),
             (e.style.height = u() * t + "px"),
             (e.style.transform = "translate3d(0,0,0)"),
@@ -4389,7 +5466,11 @@
     }
     let S = C(d, 76, (e) => {
         let t = s[e];
-        return t ? wi(t, { active: e === l }) : null;
+        return t
+          ? wi(t, {
+              active: e === l,
+            })
+          : null;
       }),
       _ = C(
         f,
@@ -4399,13 +5480,16 @@
           return n
             ? "grid" === t.layout
               ? vi(n)
-              : bi(n, { showNumber: Z().showChannelNumbers, favorite: Fi(n) })
+              : bi(n, {
+                  showNumber: settings().showChannelNumbers,
+                  favorite: isFavourite(n),
+                })
             : null;
         },
         "grid" === t.layout ? 5 : 1,
       );
     function T(e) {
-      return n(this, null, function* () {
+      return runAsync(this, null, function* () {
         if (s[e]) {
           l = e;
           for (let t of d.querySelectorAll(".category-button"))
@@ -4446,10 +5530,22 @@
     }
     function L(e) {
       "live" === e.kind
-        ? E("player", { channel: e, siblings: a, index: a.indexOf(e) })
+        ? pushRoute("player", {
+            channel: e,
+            siblings: a,
+            index: a.indexOf(e),
+          })
         : "movie" === e.kind
-          ? E("details", { kind: "movie", id: e.id, item: e })
-          : E("details", { kind: "series", id: e.id, item: e });
+          ? pushRoute("details", {
+              kind: "movie",
+              id: e.id,
+              item: e,
+            })
+          : pushRoute("details", {
+              kind: "series",
+              id: e.id,
+              item: e,
+            });
     }
     return (
       k.addEventListener("focus-enter", (e) => {
@@ -4462,24 +5558,24 @@
       }),
       k.addEventListener("focus-activate", (e) => {
         let t = e.target;
-        if (t === c) return (x(!0), b.reset(), void v(b.firstKey()));
+        if (t === c) return (x(!0), b.reset(), void focusElement(b.firstKey()));
         if (t.classList.contains("category-button")) {
           x(!1);
           var __p = __cf();
           if (__p && __p.then) {
             __p.then(function () {
               var q = f.querySelector(".channel-row, .card");
-              q && v(q);
+              q && focusElement(q);
             });
             return;
           }
           let e = f.querySelector(".channel-row, .card");
-          e && v(e);
+          e && focusElement(e);
         } else if (t.__item) {
           if (y)
             return void (y.isPreviewing(t.__item)
               ? (y.release(), L(t.__item))
-              : y.play(t.__item, Gt(t.__item.id, Z().liveFormat, t.__item)));
+              : y.play(t.__item, Gt(t.__item.id, settings().liveFormat, t.__item)));
           L(t.__item);
         }
       }),
@@ -4490,7 +5586,7 @@
           })(b.node),
             e.appendChild(k),
             (function () {
-              return n(this, null, function* () {
+              return runAsync(this, null, function* () {
                 if (((s = yield t.categories()), o)) return;
                 S.setTotal(s.length);
                 let e = t.defaultCategory
@@ -4499,21 +5595,21 @@
                       s.findIndex((e) => t.defaultCategory.test(e.name)),
                     )
                   : 0;
-                (S.scrollTo(e), w(k, S.node(e)), yield T(e));
+                (S.scrollTo(e), focusInto(k, S.node(e)), yield T(e));
               });
             })().catch(() => {
               p.textContent = "Could not load categories.";
             }));
         },
         unmount() {
-          ((o = !0), y && y.destroy(), r(k));
+          ((o = !0), y && y.destroy(), clearChildren(k));
         },
         initialFocus: () => d.querySelector(".category-button"),
         onKey: function (e) {
           if (e === Ln || e === In) {
-            let e = m();
+            let e = focusedElement();
             if (e && e.__item) {
-              let t = Di(e.__item);
+              let t = toggleFavourite(e.__item);
               return (e.classList.toggle("has-favorite", t), _.redraw(), !0);
             }
           }
@@ -4523,43 +5619,84 @@
     );
   }
   function Ir() {
-    return Lr({ kind: "live" });
+    return Lr({
+      kind: "live",
+    });
   }
   function Nr() {
-    return Lr({ kind: "movies" });
+    return Lr({
+      kind: "movies",
+    });
   }
   function Ar() {
-    return Lr({ kind: "series" });
+    return Lr({
+      kind: "series",
+    });
   }
   var Er = [
-    { kind: "live", title: "Channels", variant: "channel" },
-    { kind: "movie", title: "Movies", variant: "poster" },
-    { kind: "series", title: "Series", variant: "poster" },
+    {
+      kind: "live",
+      title: "Channels",
+      variant: "channel",
+    },
+    {
+      kind: "movie",
+      title: "Movies",
+      variant: "poster",
+    },
+    {
+      kind: "series",
+      title: "Series",
+      variant: "poster",
+    },
   ];
   function Or() {
-    let e = ti({ title: "My Favourites" }),
-      t = i("div", {
+    let e = ti({
+        title: "My Favourites",
+      }),
+      t = createElement("div", {
         class: "empty",
         text: "Nothing saved yet. Press the yellow button on any channel or title to add it.",
       });
     function n(e) {
       "live" === e.kind
-        ? E("player", { channel: e })
-        : E("details", { kind: e.kind, id: e.id, item: e });
+        ? pushRoute("player", {
+            channel: e,
+          })
+        : pushRoute("details", {
+            kind: e.kind,
+            id: e.id,
+            item: e,
+          });
     }
     function s() {
-      (r(e.node),
+      (clearChildren(e.node),
         e.node.appendChild(
-          i("div", { class: "page-header" }, [
-            i("h1", { class: "page-title", text: "My Favourites" }),
-          ]),
+          createElement(
+            "div",
+            {
+              class: "page-header",
+            },
+            [
+              createElement("h1", {
+                class: "page-title",
+                text: "My Favourites",
+              }),
+            ],
+          ),
         ));
       let s = !1;
       for (let t of Er) {
         let i = Mi(t.kind);
         if (!i.length) continue;
         s = !0;
-        let r = i.map((e) => ("live" === t.kind ? Object.assign({}, e, { logo: e.poster }) : e)),
+        let r = i.map((e) =>
+            "live" === t.kind
+              ? Object.assign({}, e, {
+                  logo: e.poster,
+                })
+              : e,
+          ),
           a = xi({
             key: "fav-" + t.kind,
             title: t.title,
@@ -4576,18 +5713,18 @@
         (t.appendChild(e.node), s());
       },
       unmount() {
-        r(e.node);
+        clearChildren(e.node);
       },
       initialFocus: () => e.node.querySelector(".card"),
       onKey(t) {
         if (t === Ln || t === In) {
-          let t = m();
+          let t = focusedElement();
           if (t && t.__item)
             return (
               qi(t.__item),
-              Ki("Removed from favourites"),
+              showToast("Removed from favourites"),
               s(),
-              b(e.node.querySelector(".card")),
+              ensureFocus(e.node.querySelector(".card")),
               !0
             );
         }
@@ -4606,9 +5743,15 @@
   function Fr() {
     let e = ti({});
     function t(e) {
-      let t = hi(e.kind, e.id);
-      E("player", {
-        item: { kind: e.kind, id: e.id, name: e.name, poster: e.poster, ext: e.ext },
+      let t = progressFor(e.kind, e.id);
+      pushRoute("player", {
+        item: {
+          kind: e.kind,
+          id: e.id,
+          name: e.name,
+          poster: e.poster,
+          ext: e.ext,
+        },
         seriesId: e.seriesId || null,
         seriesName: e.seriesName || null,
         season: e.season || null,
@@ -4617,20 +5760,29 @@
       });
     }
     function n() {
-      (r(e.node),
+      (clearChildren(e.node),
         e.node.appendChild(
-          i("div", { class: "page-header" }, [
-            i("h1", { class: "page-title", text: "Continue Watching" }),
-            i("p", {
-              class: "page-subtitle",
-              text: "Press the yellow button to remove something from this list.",
-            }),
-          ]),
+          createElement(
+            "div",
+            {
+              class: "page-header",
+            },
+            [
+              createElement("h1", {
+                class: "page-title",
+                text: "Continue Watching",
+              }),
+              createElement("p", {
+                class: "page-subtitle",
+                text: "Press the yellow button to remove something from this list.",
+              }),
+            ],
+          ),
         ));
       let n = fi(100);
       if (!n.length)
         return void e.add(
-          i("div", {
+          createElement("div", {
             class: "empty",
             text: "Nothing in progress. Anything you start will show up here.",
           }),
@@ -4659,20 +5811,20 @@
         (t.appendChild(e.node), n());
       },
       unmount() {
-        r(e.node);
+        clearChildren(e.node);
       },
       initialFocus: () => e.node.querySelector(".card"),
       onKey(t) {
         if (t === Ln || t === In) {
-          let t = m();
+          let t = focusedElement();
           if (t && t.__item)
             return (
               (function (e, t) {
                 (delete ui()[di(e, t)], ci());
               })(t.__item.kind, t.__item.id),
-              Ki("Removed from Continue Watching"),
+              showToast("Removed from Continue Watching"),
               n(),
-              b(e.node.querySelector(".card")),
+              ensureFocus(e.node.querySelector(".card")),
               !0
             );
         }
@@ -4684,14 +5836,19 @@
   function Dr() {
     let e = ti({}),
       t = !1,
-      s = i("input", {
+      s = createElement("input", {
         class: "field-input search-input",
         type: "text",
         readonly: "readonly",
         placeholder: "Search channels, movies and series",
       }),
-      l = i("div", { class: "empty", text: "" }),
-      o = i("div", { class: "search-results" }),
+      l = createElement("div", {
+        class: "empty",
+        text: "",
+      }),
+      o = createElement("div", {
+        class: "search-results",
+      }),
       u = Jn({
         language: "ar",
         suggest: (e) => {
@@ -4705,38 +5862,84 @@
         onSubmit: () => {
           Gn(s.value);
           let e = o.querySelector(".card");
-          e && v(e);
+          e && focusElement(e);
         },
       });
     function c(e) {
       "live" === e.kind
-        ? E("player", { channel: e })
-        : E("details", { kind: e.kind, id: e.id, item: e });
+        ? pushRoute("player", {
+            channel: e,
+          })
+        : pushRoute("details", {
+            kind: e.kind,
+            id: e.id,
+            item: e,
+          });
     }
     (u.setTarget(s),
       e.node.appendChild(
-        i("div", { class: "page-header" }, [i("h1", { class: "page-title", text: "Search" })]),
+        createElement(
+          "div",
+          {
+            class: "page-header",
+          },
+          [
+            createElement("h1", {
+              class: "page-title",
+              text: "Search",
+            }),
+          ],
+        ),
       ),
-      e.add(i("div", { class: "search-bar page-block" }, [s])),
-      e.add(i("div", { class: "page-block" }, [u.node])),
+      e.add(
+        createElement(
+          "div",
+          {
+            class: "search-bar page-block",
+          },
+          [s],
+        ),
+      ),
+      e.add(
+        createElement(
+          "div",
+          {
+            class: "page-block",
+          },
+          [u.node],
+        ),
+      ),
       e.add(l),
       e.add(o));
     let d = (e, t) => Cr(e, t);
     let m = a((e) => {
       (function (e) {
-        return n(this, null, function* () {
+        return runAsync(this, null, function* () {
           let n = qr(e);
-          if ((r(o), n.length < 2)) return void (l.textContent = "Type at least two characters.");
+          if ((clearChildren(o), n.length < 2))
+            return void (l.textContent = "Type at least two characters.");
           br() || (l.textContent = "Preparing search…");
           let i = yield wr();
           if (t || qr(s.value) !== n) return;
           u.refreshSuggestions();
           let a = [
-            { title: "Channels", items: d(i.live, n), variant: "channel" },
-            { title: "Movies", items: d(i.movies, n), variant: "poster" },
-            { title: "Series", items: d(i.series, n), variant: "poster" },
+            {
+              title: "Channels",
+              items: d(i.live, n),
+              variant: "channel",
+            },
+            {
+              title: "Movies",
+              items: d(i.movies, n),
+              variant: "poster",
+            },
+            {
+              title: "Series",
+              items: d(i.series, n),
+              variant: "poster",
+            },
           ].filter((e) => e.items.length);
-          if ((r(o), a.length)) {
+          if ((clearChildren(o), a.length)) {
             l.textContent = "";
             for (let e of a) {
               let t = xi({
@@ -4761,13 +5964,13 @@
           (t.appendChild(e.node), (l.textContent = "Type at least two characters."));
         },
         unmount() {
-          ((t = !0), r(e.node));
+          ((t = !0), clearChildren(e.node));
         },
         initialFocus: () => u.firstKey(),
         onKey(e) {
           if (e === Tn) {
             let e = o.querySelector(".card");
-            if (e) return (v(e), !0);
+            if (e) return (focusElement(e), !0);
           }
           return !1;
         },
@@ -4775,27 +5978,53 @@
     );
   }
   function jr() {
-    let e = ti({ title: sn("settings.title") }),
-      t = i("div", { class: "settings-list", "data-focus-memory": "settings" });
+    let e = ti({
+        title: translate("settings.title"),
+      }),
+      t = createElement("div", {
+        class: "settings-list",
+        "data-focus-memory": "settings",
+      });
     function n(e, t, n, r) {
-      let s = i("div", { class: "settings-row focusable" }, [
-        i("div", { class: "settings-text" }, [
-          i("div", { class: "settings-label", text: t }),
-          i("div", { class: "settings-description", text: n }),
-        ]),
-        i("div", { class: "settings-value", text: r }),
-      ]);
+      let s = createElement(
+        "div",
+        {
+          class: "settings-row focusable",
+        },
+        [
+          createElement(
+            "div",
+            {
+              class: "settings-text",
+            },
+            [
+              createElement("div", {
+                class: "settings-label",
+                text: t,
+              }),
+              createElement("div", {
+                class: "settings-description",
+                text: n,
+              }),
+            ],
+          ),
+          createElement("div", {
+            class: "settings-value",
+            text: r,
+          }),
+        ],
+      );
       return ((s.__key = e), s);
     }
     function s() {
-      r(t);
-      let e = Z();
+      clearChildren(t);
+      let e = settings();
       (t.appendChild(
         n(
           "language",
-          sn("settings.language"),
-          sn("settings.languageDetail"),
-          (Qt.filter((e) => e.code === nn())[0] || Qt[0]).label,
+          translate("settings.language"),
+          translate("settings.languageDetail"),
+          (LOCALES.filter((e) => e.code === currentLanguage())[0] || LOCALES[0]).label,
         ),
       ),
         t.appendChild(
@@ -4803,7 +6032,7 @@
             "preferLowerBitrate",
             "Cap quality at FHD",
             "4K streams rebuffer on this connection. Off lets 4K play when a channel offers it.",
-            e.preferLowerBitrate ? sn("settings.on") : sn("settings.off"),
+            e.preferLowerBitrate ? translate("settings.on") : translate("settings.off"),
           ),
         ),
         t.appendChild(
@@ -4819,7 +6048,7 @@
             "heroTeaser",
             "Play previews on the home spotlight",
             "Plays ~20s of each film. Only while the spotlight is focused, but it uses the account’s single connection while it does.",
-            e.heroTeaser ? sn("settings.on") : sn("settings.off"),
+            e.heroTeaser ? translate("settings.on") : translate("settings.off"),
           ),
         ),
         t.appendChild(
@@ -4827,7 +6056,7 @@
             "heroTeaserSound",
             "Spotlight sound",
             "Plays the preview with sound, the way Netflix’s billboard does.",
-            e.heroTeaserSound ? sn("settings.on") : sn("settings.off"),
+            e.heroTeaserSound ? translate("settings.on") : translate("settings.off"),
           ),
         ),
         t.appendChild(
@@ -4835,7 +6064,7 @@
             "showChannelNumbers",
             "Show channel numbers",
             "Displays the portal’s channel number beside each channel.",
-            e.showChannelNumbers ? sn("settings.on") : sn("settings.off"),
+            e.showChannelNumbers ? translate("settings.on") : translate("settings.off"),
           ),
         ),
         t.appendChild(
@@ -4853,44 +6082,54 @@
       t.addEventListener("focus-activate", (e) => {
         let t = e.target.closest(".settings-row");
         if (!t) return;
-        let n = Z();
+        let n = settings();
         switch (t.__key) {
           case "language": {
-            let e = Qt.map((e) => e.code);
+            let e = LOCALES.map((e) => e.code);
             return (
               (function (e) {
                 en = e;
                 try {
-                  localStorage.setItem($t, e);
+                  localStorage.setItem(LANGUAGE_KEY, e);
                 } catch (e) {}
-                rn();
+                applyDocumentLanguage();
                 for (var __i = 0; __i < cn.length; __i++) {
                   var __q = document.querySelector(
                     '.rail-item[data-route="' + cn[__i].id + '"] .rail-label',
                   );
-                  if (__q) __q.textContent = sn(cn[__i].key);
+                  if (__q) __q.textContent = translate(cn[__i].key);
                 }
-              })(e[(e.indexOf(nn()) + 1) % e.length]),
-              void A("settings", {})
+              })(e[(e.indexOf(currentLanguage()) + 1) % e.length]),
+              void navigateRoot("settings", {})
             );
           }
           case "preferLowerBitrate":
-            $({ preferLowerBitrate: !n.preferLowerBitrate });
+            saveSettings({
+              preferLowerBitrate: !n.preferLowerBitrate,
+            });
             break;
           case "liveFormat":
-            $({ liveFormat: "ts" === n.liveFormat ? "m3u8" : "ts" });
+            saveSettings({
+              liveFormat: "ts" === n.liveFormat ? "m3u8" : "ts",
+            });
             break;
           case "heroTeaser":
-            $({ heroTeaser: !n.heroTeaser });
+            saveSettings({
+              heroTeaser: !n.heroTeaser,
+            });
             break;
           case "heroTeaserSound":
-            $({ heroTeaserSound: !n.heroTeaserSound });
+            saveSettings({
+              heroTeaserSound: !n.heroTeaserSound,
+            });
             break;
           case "showChannelNumbers":
-            $({ showChannelNumbers: !n.showChannelNumbers });
+            saveSettings({
+              showChannelNumbers: !n.showChannelNumbers,
+            });
             break;
           case "clearCache":
-            return (le(), void Ki("Cached lists cleared"));
+            return (le(), void showToast("Cached lists cleared"));
           case "signOut":
             return (
               (function () {
@@ -4900,7 +6139,7 @@
                 } catch (e) {}
               })(),
               le(),
-              void A("welcome", {})
+              void navigateRoot("welcome", {})
             );
           default:
             return;
@@ -4912,7 +6151,7 @@
           (t.appendChild(e.node), s());
         },
         unmount() {
-          r(e.node);
+          clearChildren(e.node);
         },
         initialFocus: () => t.querySelector(".settings-row"),
         onKey: () => !1,
@@ -4924,19 +6163,40 @@
     let t = e.onUnlock,
       n = e.onCancel,
       s = "",
-      a = i("div", { class: "pin-dots" }),
-      l = i("div", { class: "pin-message", text: "Enter PIN" }),
-      o = i("div", { class: "pin-keypad", "data-focus-memory": "pinlock" }),
-      u = i("div", { class: "pin-lock" }, [
-        i("div", { class: "pin-title", text: "🔒  Locked" }),
-        l,
-        a,
-        o,
-      ]);
+      a = createElement("div", {
+        class: "pin-dots",
+      }),
+      l = createElement("div", {
+        class: "pin-message",
+        text: "Enter PIN",
+      }),
+      o = createElement("div", {
+        class: "pin-keypad",
+        "data-focus-memory": "pinlock",
+      }),
+      u = createElement(
+        "div",
+        {
+          class: "pin-lock",
+        },
+        [
+          createElement("div", {
+            class: "pin-title",
+            text: "🔒  Locked",
+          }),
+          l,
+          a,
+          o,
+        ],
+      );
     function c() {
-      r(a);
+      clearChildren(a);
       for (let e = 0; e < 4; e++)
-        a.appendChild(i("span", { class: "pin-dot" + (e < s.length ? " filled" : "") }));
+        a.appendChild(
+          createElement("span", {
+            class: "pin-dot" + (e < s.length ? " filled" : ""),
+          }),
+        );
     }
     function d(e) {
       s.length >= 4 ||
@@ -4960,17 +6220,29 @@
               }, 900))));
     }
     for (let e = 1; e <= 9; e++) {
-      let t = i("div", { class: "pin-key focusable", text: String(e) });
+      let t = createElement("div", {
+        class: "pin-key focusable",
+        text: String(e),
+      });
       ((t.__press = () => d(String(e))), o.appendChild(t));
     }
-    let m = i("div", { class: "pin-key pin-key-action focusable", text: "⌫" });
+    let m = createElement("div", {
+      class: "pin-key pin-key-action focusable",
+      text: "⌫",
+    });
     ((m.__press = () => {
       ((s = s.slice(0, -1)), c());
     }),
       o.appendChild(m));
-    let h = i("div", { class: "pin-key focusable", text: "0" });
+    let h = createElement("div", {
+      class: "pin-key focusable",
+      text: "0",
+    });
     ((h.__press = () => d("0")), o.appendChild(h));
-    let f = i("div", { class: "pin-key pin-key-action focusable", text: "✕" });
+    let f = createElement("div", {
+      class: "pin-key pin-key-action focusable",
+      text: "✕",
+    });
     return (
       (f.__press = () => {
         n && n();
@@ -4987,7 +6259,7 @@
           ((s = ""), (l.textContent = "Enter PIN"), c());
         },
         focusFirst() {
-          v(o.querySelector(".pin-key"));
+          focusElement(o.querySelector(".pin-key"));
         },
       }
     );
@@ -4997,29 +6269,63 @@
       t = [],
       s = 0,
       a = !1,
-      l = i("div", {
+      l = createElement("div", {
         class: "category-button category-search focusable",
         text: "⌕   Search free channels",
       }),
-      o = i("div", { class: "pane-scroll" }),
-      u = i("div", { class: "category-pane", "data-focus-memory": "free-cats" }, [
-        i("div", { class: "pane-title", text: "Free channels" }),
-        l,
-        o,
-      ]),
-      c = i("div", { class: "pane-scroll" }),
-      d = i("div", { class: "pane-title", text: "Loading…" }),
-      h = i("div", { class: "channel-pane", "data-focus-memory": "free-items" }, [d, c]),
+      o = createElement("div", {
+        class: "pane-scroll",
+      }),
+      u = createElement(
+        "div",
+        {
+          class: "category-pane",
+          "data-focus-memory": "free-cats",
+        },
+        [
+          createElement("div", {
+            class: "pane-title",
+            text: "Free channels",
+          }),
+          l,
+          o,
+        ],
+      ),
+      c = createElement("div", {
+        class: "pane-scroll",
+      }),
+      d = createElement("div", {
+        class: "pane-title",
+        text: "Loading…",
+      }),
+      h = createElement(
+        "div",
+        {
+          class: "channel-pane",
+          "data-focus-memory": "free-items",
+        },
+        [d, c],
+      ),
       f = mr(),
       p = _r({
         kind: "freetv",
         renderRow: (e) => bi(e, {}),
         onOpen: (e, t) => {
-          E("player", { channel: e, siblings: t, index: t.indexOf(e) });
+          pushRoute("player", {
+            channel: e,
+            siblings: t,
+            index: t.indexOf(e),
+          });
         },
       });
     p.node.hidden = !0;
-    let g = i("div", { class: "split split-with-preview" }, [u, h, f.node]);
+    let g = createElement(
+      "div",
+      {
+        class: "split split-with-preview",
+      },
+      [u, h, f.node],
+    );
     function y(e) {
       ((p.node.hidden = !e),
         (c.hidden = e),
@@ -5054,7 +6360,7 @@
           ((a = n),
             (i = 0),
             s.clear(),
-            r(e),
+            clearChildren(e),
             (e.style.position = "relative"),
             (e.style.height = a * t + "px"),
             (e.style.transform = "translate3d(0,0,0)"),
@@ -5073,14 +6379,22 @@
     }
     let x = b(o, 76, (t) => {
         let n = e[t];
-        return n ? wi(n, { active: t === s }) : null;
+        return n
+          ? wi(n, {
+              active: t === s,
+            })
+          : null;
       }),
       k = b(c, 88, (e) => {
         let n = t[e];
-        return n ? bi(n, { favorite: Fi(n) }) : null;
+        return n
+          ? bi(n, {
+              favorite: isFavourite(n),
+            })
+          : null;
       });
     function C(i) {
-      return n(this, null, function* () {
+      return runAsync(this, null, function* () {
         if (!e[i]) return;
         s = i;
         for (let e of o.querySelectorAll(".category-button"))
@@ -5101,7 +6415,7 @@
         (_(!1), C(s));
       },
       onCancel: () => {
-        (_(!1), v(x.node(s)));
+        (_(!1), focusElement(x.node(s)));
       },
     });
     function _(e) {
@@ -5121,16 +6435,20 @@
       }),
       g.addEventListener("focus-activate", (e) => {
         let n = e.target;
-        if (n === l) return (y(!0), p.reset(), void v(p.firstKey()));
+        if (n === l) return (y(!0), p.reset(), void focusElement(p.firstKey()));
         if (n.classList.contains("category-button")) {
           y(!1);
           let e = c.querySelector(".channel-row");
-          e && v(e);
+          e && focusElement(e);
         } else
           n.__item &&
             (f.isPreviewing(n.__item)
               ? (f.release(),
-                E("player", { channel: n.__item, siblings: t, index: t.indexOf(n.__item) }))
+                pushRoute("player", {
+                  channel: n.__item,
+                  siblings: t,
+                  index: t.indexOf(n.__item),
+                }))
               : f.play(n.__item, n.__item.url));
       }),
       {
@@ -5139,9 +6457,9 @@
             h.appendChild(S.node),
             t.appendChild(g),
             (function () {
-              return n(this, null, function* () {
+              return runAsync(this, null, function* () {
                 if (((e = yield _t()), a)) return;
-                (x.setTotal(e.length), w(g, x.node(0)), yield C(0));
+                (x.setTotal(e.length), focusInto(g, x.node(0)), yield C(0));
                 let t = jt();
                 t &&
                   (d.textContent =
@@ -5153,13 +6471,13 @@
             p.prepare());
         },
         unmount() {
-          ((a = !0), f.destroy(), r(g));
+          ((a = !0), f.destroy(), clearChildren(g));
         },
         initialFocus: () => o.querySelector(".category-button"),
         onKey(e) {
           if (e === Ln || e === In) {
-            let e = m();
-            if (e && e.__item) return (Di(e.__item), !0);
+            let e = focusedElement();
+            if (e && e.__item) return (toggleFavourite(e.__item), !0);
           }
           return !1;
         },
@@ -5167,15 +6485,17 @@
     );
   }
   function zr() {
-    rn();
+    applyDocumentLanguage();
     let e = (function (e, t) {
       return (t || document).querySelector(e);
     })("#app");
     e.innerHTML = "";
     let t = dn(),
-      r = i("div", { class: "content" });
+      r = createElement("div", {
+        class: "content",
+      });
     function s() {
-      let e = I(),
+      let e = currentRoute(),
         n = "player" === e;
       ((t.node.style.display = n ? "none" : ""),
         (r.style.left = n ? "0" : ""),
@@ -5183,55 +6503,60 @@
     }
     (e.appendChild(t.node),
       e.appendChild(r),
-      L(r),
+      setRouteRoot(r),
       (window.__router = l),
-      T("welcome", ei),
-      T("home", ji),
-      T("player", rr),
-      T("details", ar),
-      T("live", Ir),
-      T("movies", Nr),
-      T("series", Ar),
-      T("favorites", Or),
-      T("continue", Fr),
-      T("search", Dr),
-      T("settings", jr),
-      T("freetv", Kr),
+      registerRoute("welcome", ei),
+      registerRoute("home", ji),
+      registerRoute("player", rr),
+      registerRoute("details", ar),
+      registerRoute("live", Ir),
+      registerRoute("movies", Nr),
+      registerRoute("series", Ar),
+      registerRoute("favorites", Or),
+      registerRoute("continue", Fr),
+      registerRoute("search", Dr),
+      registerRoute("settings", jr),
+      registerRoute("freetv", Kr),
       document.addEventListener("focus-moved", s),
       document.addEventListener("keydown", (e) => {
         let n = e.keyCode;
         if (q(n)) return void e.preventDefault();
         let i = Dn[n];
-        if (i) return (y(i), void e.preventDefault());
+        if (i) return (moveFocus(i), void e.preventDefault());
         if (Un(n))
           return (
-            u && u.dispatchEvent(new CustomEvent("focus-activate", { bubbles: !0 })),
+            focusedEl &&
+              focusedEl.dispatchEvent(
+                new CustomEvent("focus-activate", {
+                  bubbles: !0,
+                }),
+              ),
             void e.preventDefault()
           );
         if (jn(n)) {
-          if (!M()) {
-            v(t.button(I()) || t.button("home"));
+          if (!goBack()) {
+            focusElement(t.button(currentRoute()) || t.button("home"));
           }
           e.preventDefault();
         }
       }),
-      "free" === V() || null !== W()
+      "free" === sourceKind() || null !== W()
         ? ((function () {
             let e = 0;
             try {
               e = Number(localStorage.getItem(ae)) || 0;
             } catch (e) {}
-            if (e && re() - e < 864e5) return !1;
+            if (e && now() - e < 864e5) return !1;
             le();
             try {
-              localStorage.setItem(ae, String(re()));
+              localStorage.setItem(ae, String(now()));
             } catch (e) {}
           })(),
-          A("home", {}),
+          navigateRoot("home", {}),
           (pn
             ? Promise.resolve(pn)
             : gn ||
-              (gn = n(null, null, function* () {
+              (gn = runAsync(null, null, function* () {
                 let e = yield zt(),
                   t = Object.create(null);
                 for (let n of e) {
@@ -5260,7 +6585,7 @@
                 return ((gn = null), (pn = t));
               }))
           ).catch(() => {}))
-        : A("welcome", {}),
+        : navigateRoot("welcome", {}),
       s());
   }
   "loading" === document.readyState ? document.addEventListener("DOMContentLoaded", zr) : zr();
