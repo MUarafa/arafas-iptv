@@ -28,6 +28,9 @@ command -v ares-package >/dev/null || { echo "ares-package not found on PATH" >&
 if [ -d node_modules/esbuild ]; then
   npm run --silent build || { echo "bundle build failed" >&2; exit 1; }
   echo "bundle rebuilt from src/"
+  # A refactor can leave a call pointing at nothing: the build stays happy and the
+  # app breaks only on the screen that uses it. Refuse to package that.
+  node tools/check-globals.mjs || { echo "unresolved identifiers - refusing to package" >&2; exit 1; }
 fi
 
 node --check app/bundle.js || exit 1

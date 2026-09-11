@@ -1,3 +1,77 @@
+import {
+  activeRouteName,
+  activeRouteParams,
+  activeScreen,
+  currentRoute,
+  goBack,
+  navigateRoot,
+  pushRoute,
+  registerRoute,
+  renderRoute,
+  replaceRoute,
+  routeHistory,
+  routeRoot,
+  routeTable,
+  setRouteRoot,
+} from "./router.js";
+import {
+  c,
+  d,
+  ensureFocus,
+  f,
+  focusElement,
+  focusInto,
+  focusedEl,
+  focusedElement,
+  g,
+  h,
+  moveFocus,
+  o,
+  p,
+  s,
+} from "./focus.js";
+import {
+  LANGUAGE_KEY,
+  LOCALES,
+  MESSAGES,
+  applyDocumentLanguage,
+  currentLanguage,
+  detectLanguage,
+  en,
+  translate,
+  setLanguageCode,
+} from "./i18n.js";
+import { clearChildren, createElement } from "./dom.js";
+import {
+  ALPHABET,
+  Bn,
+  DIGITS,
+  DIRECTION_BY_KEY,
+  KEYBOARD_LAYOUTS,
+  KEY_BACK,
+  KEY_BACKSPACE,
+  KEY_BLUE,
+  KEY_CHANNEL_DOWN,
+  KEY_CHANNEL_UP,
+  KEY_DOWN,
+  KEY_ESCAPE,
+  KEY_FORWARD,
+  KEY_GREEN,
+  KEY_LEFT,
+  KEY_OK,
+  KEY_PAUSE,
+  KEY_PLAY,
+  KEY_PLAY_PAUSE,
+  KEY_REWIND,
+  KEY_RIGHT,
+  KEY_STOP,
+  KEY_UP,
+  KEY_YELLOW,
+  Vn,
+  Wn,
+  isBackKey,
+  isSelectKey,
+} from "./keys.js";
 (() => {
   var e = Object.defineProperty,
     t = (t, n) => {
@@ -26,44 +100,6 @@
           l = (e) => (e.done ? i(e.value) : Promise.resolve(e.value).then(s, a));
         l((n = n.apply(e, t)).next());
       });
-  function createElement(e, t, n) {
-    let i = document.createElement(e);
-    if (t)
-      for (let e of Object.keys(t)) {
-        let n = t[e];
-        null == n ||
-          !1 === n ||
-          ("class" === e
-            ? (i.className = n)
-            : "text" === e
-              ? (i.textContent = n)
-              : "html" === e
-                ? (i.innerHTML = n)
-                : "style" === e
-                  ? (i.style.cssText = n)
-                  : "on" === e.slice(0, 2)
-                    ? i.addEventListener(e.slice(2), n)
-                    : (e.slice(0, 5), i.setAttribute(e, n)));
-      }
-    return (
-      n &&
-        (function (e, t) {
-          let n = Array.isArray(t) ? t : [t];
-          for (let t of n)
-            null == t ||
-              !1 === t ||
-              e.appendChild("string" == typeof t ? document.createTextNode(t) : t);
-        })(i, n),
-      i
-    );
-  }
-  function clearChildren(e) {
-    for (; e.firstChild;) e.removeChild(e.firstChild);
-    return e;
-  }
-  function s(e, t) {
-    return Array.prototype.slice.call((t || document).querySelectorAll(e));
-  }
   function a(e, t) {
     let n = null;
     return function (...i) {
@@ -166,170 +202,6 @@
     replace: () => replaceRoute,
     view: () => D,
   });
-  var o = ".focusable:not(.disabled):not([hidden])",
-    focusedEl = null,
-    c = Object.create(null),
-    d = !0;
-  function focusedElement() {
-    return focusedEl;
-  }
-  function h(e) {
-    if (null === e.offsetParent && "fixed" !== getComputedStyle(e).position) return !1;
-    let t = e.getBoundingClientRect();
-    return t.width > 0 && t.height > 0;
-  }
-  function f(e) {
-    return s(o, e || document.querySelector("[data-focus-trap]") || document).filter(h);
-  }
-  function p(e) {
-    return {
-      x: e.left + e.width / 2,
-      y: e.top + e.height / 2,
-    };
-  }
-  function g(e, t, n) {
-    let i,
-      r,
-      s = p(e),
-      a = p(t);
-    return (
-      "left" === n || "right" === n
-        ? ((i = "right" === n ? t.left - e.right : e.left - t.right),
-          (r = Math.min(e.bottom, t.bottom) - Math.max(e.top, t.top) > 0 ? 0 : Math.abs(a.y - s.y)))
-        : ((i = "down" === n ? t.top - e.bottom : e.top - t.bottom),
-          (r =
-            Math.min(e.right, t.right) - Math.max(e.left, t.left) > 0 ? 0 : Math.abs(a.x - s.x))),
-      i < -2 ? null : Math.max(i, 0) + 4 * r
-    );
-  }
-  function focusElement(e, t) {
-    if (!e) return !1;
-    let n =
-      t && t.exact
-        ? e
-        : (function (e) {
-            let t = e.closest("[data-focus-memory]");
-            if (!t) return e;
-            let n = t.getAttribute("data-focus-memory"),
-              i = c[n];
-            return (focusedEl && t.contains(focusedEl)) || !i || !t.contains(i) || !h(i) ? e : i;
-          })(e);
-    return (
-      (d = !(!t || !t.provisional)),
-      n === focusedEl ||
-        (focusedEl &&
-          (focusedEl.classList.remove("focused"), focusedEl.removeAttribute("data-focused")),
-        (focusedEl = n).classList.add("focused"),
-        focusedEl.setAttribute("data-focused", ""),
-        (function (e) {
-          let t = e.closest("[data-focus-memory]");
-          t && (c[t.getAttribute("data-focus-memory")] = e);
-        })(focusedEl),
-        focusedEl.dispatchEvent(
-          new CustomEvent("focus-enter", {
-            bubbles: !0,
-          }),
-        ),
-        document.dispatchEvent(
-          new CustomEvent("focus-moved", {
-            detail: {
-              node: focusedEl,
-            },
-          }),
-        )),
-      !0
-    );
-  }
-  function moveFocus(e) {
-    let t = (function (e, t) {
-      let n = t || focusedEl;
-      if (!n) return f()[0] || null;
-      let i = n.getBoundingClientRect(),
-        r = (function (e, t) {
-          let n = "up" === t || "down" === t ? "vertical" : "horizontal",
-            i = e.closest("[data-focus-contain]");
-          return i && i.getAttribute("data-focus-contain") === n ? i : null;
-        })(n, e),
-        a = null,
-        l = 1 / 0;
-      for (let t of r ? s(o, r).filter(h) : f()) {
-        if (t === n) continue;
-        let r = g(i, t.getBoundingClientRect(), e);
-        null === r || r >= l || ((l = r), (a = t));
-      }
-      return a;
-    })(e);
-    return t
-      ? focusElement(t)
-      : (focusedEl &&
-          focusedEl.dispatchEvent(
-            new CustomEvent("focus-edge", {
-              bubbles: !0,
-              detail: {
-                dir: e,
-              },
-            }),
-          ),
-        !1);
-  }
-  function ensureFocus(e) {
-    (focusedEl &&
-      !document.contains(focusedEl) &&
-      (focusedEl.classList.remove("focused"), (focusedEl = null)),
-      focusedEl ||
-        focusElement(e || f()[0], {
-          provisional: !0,
-        }));
-  }
-  function focusInto(e, t) {
-    return !(!t || !e || (focusedEl && e.contains(focusedEl)) || !d) && focusElement(t);
-  }
-  var routeTable = Object.create(null),
-    routeHistory = [],
-    routeRoot = null,
-    activeScreen = null,
-    activeRouteName = null;
-  function registerRoute(e, t) {
-    routeTable[e] = t;
-  }
-  function setRouteRoot(e) {
-    routeRoot = e;
-  }
-  function currentRoute() {
-    return activeRouteName;
-  }
-  function renderRoute(e, t) {
-    let n = routeTable[e];
-    if (!n) throw new Error("Unknown view: " + e);
-    if (activeScreen && activeScreen.unmount)
-      try {
-        activeScreen.unmount();
-      } catch (e) {}
-    (clearChildren(routeRoot),
-      (activeRouteName = e),
-      (activeScreen = n(t || {})).mount(routeRoot),
-      ensureFocus(activeScreen.initialFocus ? activeScreen.initialFocus() : null));
-  }
-  function navigateRoot(e, t) {
-    ((routeHistory.length = 0), renderRoute(e, t));
-  }
-  function pushRoute(e, t) {
-    (activeRouteName &&
-      routeHistory.push({
-        name: activeRouteName,
-        params: activeRouteParams,
-      }),
-      (activeRouteParams = t),
-      renderRoute(e, t));
-  }
-  var activeRouteParams = null;
-  function replaceRoute(e, t) {
-    ((activeRouteParams = t), renderRoute(e, t));
-  }
-  function goBack() {
-    let e = routeHistory.pop();
-    return !!e && ((activeRouteParams = e.params), renderRoute(e.name, e.params), !0);
-  }
   function F() {
     return routeHistory.length > 0;
   }
@@ -1527,395 +1399,6 @@
   function Zt(e, t) {
     return activeAdapter().movieUrl(e, t);
   }
-  var LANGUAGE_KEY = "iptv:language",
-    LOCALES = [
-      {
-        code: "en",
-        label: "English",
-      },
-      {
-        code: "ar",
-        label: "العربية",
-        rtl: !0,
-      },
-      {
-        code: "es",
-        label: "Español",
-      },
-      {
-        code: "fr",
-        label: "Français",
-      },
-      {
-        code: "tr",
-        label: "Türkçe",
-      },
-      {
-        code: "de",
-        label: "Deutsch",
-      },
-    ],
-    MESSAGES = {
-      en: {
-        "nav.continue": "Continue Watching",
-        "nav.favorites": "Favourites",
-        "nav.search": "Search",
-        "nav.home": "Home",
-        "nav.live": "Live TV",
-        "nav.movies": "Movies",
-        "nav.series": "Series",
-        "nav.settings": "Settings",
-        "nav.freetv": "Free TV",
-        "welcome.question": "How would you like to watch?",
-        "welcome.xtream": "Xtream account",
-        "welcome.xtreamDetail":
-          "A portal URL with a username and password. Live TV, films and series.",
-        "welcome.m3u": "M3U playlist",
-        "welcome.m3uDetail": "A playlist URL from your provider. Live channels.",
-        "welcome.free": "Watch our free playlist",
-        "welcome.freeDetail":
-          "Thousands of public channels from around the world. Nothing to enter.",
-        "welcome.serverUrl": "Server URL",
-        "welcome.username": "Username",
-        "welcome.password": "Password",
-        "welcome.playlistUrl": "Playlist URL",
-        "welcome.signIn": "Sign in",
-        "welcome.back": "Back",
-        "welcome.connecting": "Connecting…",
-        "welcome.loadingChannels": "Loading channels…",
-        "welcome.fillAll": "Fill in all three fields.",
-        "welcome.wrongLogin": "Wrong username or password.",
-        "welcome.enterPlaylist": "Enter your playlist URL.",
-        "home.spotlight": "Recommended",
-        "home.play": "Play",
-        "home.moreInfo": "More info",
-        "home.continue": "Continue Watching",
-        "home.favorites": "My Favourites",
-        "browse.categories": "Categories",
-        "browse.search": "Search",
-        "browse.preview": "Preview",
-        "browse.pressOkPreview": "Press OK to preview",
-        "browse.pressOkFull": "Press OK again for full screen",
-        "browse.noResponse": "This channel did not respond",
-        "browse.freeChannels": "Free channels",
-        "search.placeholder": "Search channels, movies and series",
-        "search.minChars": "Type at least two characters.",
-        "search.preparing": "Preparing…",
-        "search.nothing": "Nothing found",
-        "search.channels": "Channels",
-        "search.movies": "Movies",
-        "search.series": "Series",
-        "player.skipIntro": "Skip intro",
-        "player.nextEpisode": "Next episode",
-        "player.quality": "Quality",
-        "player.upNext": "Up next",
-        "player.playNext": "Play next episode",
-        "player.unavailable": "This channel is not available right now.",
-        "player.fit": "Fit",
-        "player.fill": "Fill screen",
-        "player.stretch": "Stretch",
-        "details.play": "Play",
-        "details.resume": "Resume",
-        "details.favorite": "Favourite",
-        "details.season": "Season",
-        "details.couldNotLoad": "Could not load details.",
-        "details.offline":
-          "No internet — your provider is redirecting the connection. Trying again…",
-        "favorites.empty":
-          "Nothing saved yet. Press the yellow button on any channel or title to add it.",
-        "favorites.added": "Added to favourites",
-        "favorites.removed": "Removed from favourites",
-        "continue.empty": "Nothing in progress. Anything you start will show up here.",
-        "continue.hint": "Press the yellow button to remove something from this list.",
-        "continue.removed": "Removed from Continue Watching",
-        "continue.minLeft": "min left",
-        "settings.title": "Settings",
-        "settings.language": "Language",
-        "settings.languageDetail": "The language the app itself is shown in.",
-        "settings.on": "On",
-        "settings.off": "Off",
-        "lock.locked": "Locked",
-        "lock.enterPin": "Enter PIN",
-        "lock.wrongPin": "Wrong PIN",
-      },
-      ar: {
-        "nav.continue": "متابعة المشاهدة",
-        "nav.favorites": "المفضلة",
-        "nav.search": "بحث",
-        "nav.home": "الرئيسية",
-        "nav.live": "البث المباشر",
-        "nav.movies": "أفلام",
-        "nav.series": "مسلسلات",
-        "nav.settings": "الإعدادات",
-        "nav.freetv": "قنوات مجانية",
-        "welcome.question": "إزاي تحب تتفرج؟",
-        "welcome.xtream": "حساب Xtream",
-        "welcome.xtreamDetail": "رابط السيرفر مع اسم المستخدم وكلمة السر. قنوات وأفلام ومسلسلات.",
-        "welcome.m3u": "قائمة M3U",
-        "welcome.m3uDetail": "رابط قائمة تشغيل من مزوّدك. قنوات مباشرة.",
-        "welcome.free": "شاهد قائمتنا المجانية",
-        "welcome.freeDetail": "آلاف القنوات العامة من كل العالم. من غير ما تدخل أي حاجة.",
-        "welcome.serverUrl": "رابط السيرفر",
-        "welcome.username": "اسم المستخدم",
-        "welcome.password": "كلمة السر",
-        "welcome.playlistUrl": "رابط القائمة",
-        "welcome.signIn": "تسجيل الدخول",
-        "welcome.back": "رجوع",
-        "welcome.connecting": "جاري الاتصال…",
-        "welcome.loadingChannels": "جاري تحميل القنوات…",
-        "welcome.fillAll": "املأ الحقول الثلاثة.",
-        "welcome.wrongLogin": "اسم المستخدم أو كلمة السر غير صحيحة.",
-        "welcome.enterPlaylist": "أدخل رابط القائمة.",
-        "home.spotlight": "مُقترح لك",
-        "home.play": "تشغيل",
-        "home.moreInfo": "تفاصيل",
-        "home.continue": "متابعة المشاهدة",
-        "home.favorites": "المفضلة",
-        "browse.categories": "التصنيفات",
-        "browse.search": "بحث",
-        "browse.preview": "معاينة",
-        "browse.pressOkPreview": "اضغط OK للمعاينة",
-        "browse.pressOkFull": "اضغط OK مرة تانية لملء الشاشة",
-        "browse.noResponse": "القناة دي مش مستجيبة",
-        "browse.freeChannels": "قنوات مجانية",
-        "search.placeholder": "ابحث في القنوات والأفلام والمسلسلات",
-        "search.minChars": "اكتب حرفين على الأقل.",
-        "search.preparing": "جاري التحضير…",
-        "search.nothing": "مفيش نتائج",
-        "search.channels": "قنوات",
-        "search.movies": "أفلام",
-        "search.series": "مسلسلات",
-        "player.skipIntro": "تخطي المقدمة",
-        "player.nextEpisode": "الحلقة التالية",
-        "player.quality": "الجودة",
-        "player.upNext": "التالي",
-        "player.playNext": "شغّل الحلقة التالية",
-        "player.unavailable": "القناة دي مش متاحة دلوقتي.",
-        "player.fit": "ملائم",
-        "player.fill": "ملء الشاشة",
-        "player.stretch": "تمديد",
-        "details.play": "تشغيل",
-        "details.resume": "متابعة",
-        "details.favorite": "المفضلة",
-        "details.season": "الموسم",
-        "details.couldNotLoad": "تعذّر تحميل التفاصيل.",
-        "details.offline": "مفيش إنترنت — مزوّد الخدمة بيحوّل الاتصال. بنحاول تاني…",
-        "favorites.empty": "مفيش حاجة محفوظة. اضغط الزر الأصفر على أي قناة أو عمل لإضافته.",
-        "favorites.added": "تمت الإضافة للمفضلة",
-        "favorites.removed": "تم الحذف من المفضلة",
-        "continue.empty": "مفيش حاجة قيد المشاهدة. أي حاجة تبدأها هتظهر هنا.",
-        "continue.hint": "اضغط الزر الأصفر لحذف أي حاجة من القائمة دي.",
-        "continue.removed": "تم الحذف من متابعة المشاهدة",
-        "continue.minLeft": "دقيقة متبقية",
-        "settings.title": "الإعدادات",
-        "settings.language": "اللغة",
-        "settings.languageDetail": "اللغة اللي بيظهر بيها الأب نفسه.",
-        "settings.on": "مفعّل",
-        "settings.off": "متوقف",
-        "lock.locked": "مقفول",
-        "lock.enterPin": "أدخل الرقم السري",
-        "lock.wrongPin": "رقم غير صحيح",
-      },
-      es: {
-        "nav.continue": "Seguir viendo",
-        "nav.favorites": "Favoritos",
-        "nav.search": "Buscar",
-        "nav.home": "Inicio",
-        "nav.live": "TV en vivo",
-        "nav.movies": "Películas",
-        "nav.series": "Series",
-        "nav.settings": "Ajustes",
-        "nav.freetv": "TV gratis",
-        "welcome.question": "¿Cómo quieres ver?",
-        "welcome.xtream": "Cuenta Xtream",
-        "welcome.xtreamDetail":
-          "Una URL de portal con usuario y contraseña. TV, películas y series.",
-        "welcome.m3u": "Lista M3U",
-        "welcome.m3uDetail": "Una URL de lista de tu proveedor. Canales en vivo.",
-        "welcome.free": "Ver nuestra lista gratuita",
-        "welcome.freeDetail": "Miles de canales públicos de todo el mundo. Sin registrarte.",
-        "welcome.signIn": "Entrar",
-        "welcome.back": "Atrás",
-        "home.spotlight": "Recomendado",
-        "home.play": "Reproducir",
-        "home.moreInfo": "Más información",
-        "home.continue": "Seguir viendo",
-        "home.favorites": "Mis favoritos",
-        "browse.categories": "Categorías",
-        "browse.search": "Buscar",
-        "browse.preview": "Vista previa",
-        "browse.pressOkPreview": "Pulsa OK para la vista previa",
-        "browse.pressOkFull": "Pulsa OK otra vez para pantalla completa",
-        "search.placeholder": "Busca canales, películas y series",
-        "search.minChars": "Escribe al menos dos letras.",
-        "player.skipIntro": "Saltar intro",
-        "player.nextEpisode": "Siguiente episodio",
-        "player.quality": "Calidad",
-        "player.upNext": "A continuación",
-        "player.fit": "Ajustar",
-        "player.fill": "Llenar pantalla",
-        "player.stretch": "Estirar",
-        "details.play": "Reproducir",
-        "details.resume": "Continuar",
-        "details.favorite": "Favorito",
-        "details.season": "Temporada",
-        "settings.title": "Ajustes",
-        "settings.language": "Idioma",
-        "settings.on": "Sí",
-        "settings.off": "No",
-        "lock.enterPin": "Introduce el PIN",
-      },
-      fr: {
-        "nav.continue": "Reprendre",
-        "nav.favorites": "Favoris",
-        "nav.search": "Rechercher",
-        "nav.home": "Accueil",
-        "nav.live": "TV en direct",
-        "nav.movies": "Films",
-        "nav.series": "Séries",
-        "nav.settings": "Paramètres",
-        "nav.freetv": "TV gratuite",
-        "welcome.question": "Comment voulez-vous regarder ?",
-        "welcome.xtream": "Compte Xtream",
-        "welcome.xtreamDetail":
-          "Une URL de portail avec identifiant et mot de passe. TV, films et séries.",
-        "welcome.m3u": "Playlist M3U",
-        "welcome.m3uDetail": "Une URL de playlist de votre fournisseur. Chaînes en direct.",
-        "welcome.free": "Voir notre playlist gratuite",
-        "welcome.freeDetail": "Des milliers de chaînes publiques du monde entier. Rien à saisir.",
-        "welcome.signIn": "Se connecter",
-        "welcome.back": "Retour",
-        "home.spotlight": "Recommandé",
-        "home.play": "Lecture",
-        "home.moreInfo": "Plus d’infos",
-        "home.continue": "Reprendre",
-        "home.favorites": "Mes favoris",
-        "browse.categories": "Catégories",
-        "browse.search": "Rechercher",
-        "browse.preview": "Aperçu",
-        "browse.pressOkPreview": "Appuyez sur OK pour l’aperçu",
-        "browse.pressOkFull": "Appuyez de nouveau pour le plein écran",
-        "search.placeholder": "Rechercher chaînes, films et séries",
-        "search.minChars": "Saisissez au moins deux lettres.",
-        "player.skipIntro": "Passer l’intro",
-        "player.nextEpisode": "Épisode suivant",
-        "player.quality": "Qualité",
-        "player.upNext": "À suivre",
-        "player.fit": "Ajuster",
-        "player.fill": "Plein écran",
-        "player.stretch": "Étirer",
-        "details.play": "Lecture",
-        "details.resume": "Reprendre",
-        "details.favorite": "Favori",
-        "details.season": "Saison",
-        "settings.title": "Paramètres",
-        "settings.language": "Langue",
-        "settings.on": "Activé",
-        "settings.off": "Désactivé",
-        "lock.enterPin": "Saisissez le code",
-      },
-      tr: {
-        "nav.continue": "İzlemeye devam et",
-        "nav.favorites": "Favoriler",
-        "nav.search": "Ara",
-        "nav.home": "Ana sayfa",
-        "nav.live": "Canlı TV",
-        "nav.movies": "Filmler",
-        "nav.series": "Diziler",
-        "nav.settings": "Ayarlar",
-        "nav.freetv": "Ücretsiz TV",
-        "welcome.question": "Nasıl izlemek istersiniz?",
-        "welcome.xtream": "Xtream hesabı",
-        "welcome.m3u": "M3U listesi",
-        "welcome.free": "Ücretsiz listemizi izleyin",
-        "welcome.signIn": "Giriş yap",
-        "welcome.back": "Geri",
-        "home.spotlight": "Önerilen",
-        "home.play": "Oynat",
-        "home.moreInfo": "Daha fazla bilgi",
-        "browse.categories": "Kategoriler",
-        "browse.search": "Ara",
-        "browse.preview": "Önizleme",
-        "search.minChars": "En az iki harf yazın.",
-        "player.skipIntro": "Jeneriği geç",
-        "player.nextEpisode": "Sonraki bölüm",
-        "player.quality": "Kalite",
-        "player.upNext": "Sırada",
-        "details.play": "Oynat",
-        "details.season": "Sezon",
-        "settings.title": "Ayarlar",
-        "settings.language": "Dil",
-        "settings.on": "Açık",
-        "settings.off": "Kapalı",
-      },
-      de: {
-        "nav.continue": "Weiterschauen",
-        "nav.favorites": "Favoriten",
-        "nav.search": "Suche",
-        "nav.home": "Start",
-        "nav.live": "Live-TV",
-        "nav.movies": "Filme",
-        "nav.series": "Serien",
-        "nav.settings": "Einstellungen",
-        "nav.freetv": "Gratis-TV",
-        "welcome.question": "Wie möchten Sie schauen?",
-        "welcome.xtream": "Xtream-Konto",
-        "welcome.m3u": "M3U-Playlist",
-        "welcome.free": "Unsere kostenlose Playlist",
-        "welcome.signIn": "Anmelden",
-        "welcome.back": "Zurück",
-        "home.spotlight": "Empfohlen",
-        "home.play": "Abspielen",
-        "home.moreInfo": "Mehr Infos",
-        "browse.categories": "Kategorien",
-        "browse.search": "Suche",
-        "browse.preview": "Vorschau",
-        "search.minChars": "Mindestens zwei Zeichen eingeben.",
-        "player.skipIntro": "Intro überspringen",
-        "player.nextEpisode": "Nächste Folge",
-        "player.quality": "Qualität",
-        "player.upNext": "Als Nächstes",
-        "details.play": "Abspielen",
-        "details.season": "Staffel",
-        "settings.title": "Einstellungen",
-        "settings.language": "Sprache",
-        "settings.on": "An",
-        "settings.off": "Aus",
-      },
-    },
-    en = null;
-  function detectLanguage() {
-    let e = "";
-    try {
-      e = (navigator.language || "").toLowerCase();
-    } catch (e) {}
-    for (let t of LOCALES) if (0 === e.indexOf(t.code)) return t.code;
-    return "en";
-  }
-  function currentLanguage() {
-    if (en) return en;
-    try {
-      en = localStorage.getItem(LANGUAGE_KEY) || detectLanguage();
-    } catch (e) {
-      en = detectLanguage();
-    }
-    return en;
-  }
-  function applyDocumentLanguage() {
-    (document.documentElement.setAttribute(
-      "dir",
-      (function () {
-        let e = LOCALES.filter((e) => e.code === currentLanguage())[0];
-        return !(!e || !e.rtl);
-      })()
-        ? "rtl"
-        : "ltr",
-    ),
-      document.documentElement.setAttribute("lang", currentLanguage()));
-  }
-  function translate(e) {
-    return (MESSAGES[currentLanguage()] || MESSAGES.en)[e] || MESSAGES.en[e] || e;
-  }
   var SVG_NS = "http://www.w3.org/2000/svg",
     gradientSeq = 0;
   function on(e) {
@@ -2176,97 +1659,6 @@
     let i = n.filter((t) => t.id !== e.id);
     return [t].concat(i);
   }
-  var KEY_LEFT = 37,
-    KEY_UP = 38,
-    KEY_RIGHT = 39,
-    KEY_DOWN = 40,
-    KEY_OK = 13,
-    KEY_BACK = 461,
-    KEY_BACKSPACE = 8,
-    KEY_ESCAPE = 27,
-    KEY_GREEN = 404,
-    KEY_YELLOW = 405,
-    KEY_BLUE = 406,
-    KEY_PLAY = 415,
-    KEY_PAUSE = 19,
-    KEY_PLAY_PAUSE = 179,
-    KEY_STOP = 413,
-    KEY_REWIND = 412,
-    KEY_FORWARD = 417,
-    KEY_CHANNEL_UP = 33,
-    KEY_CHANNEL_DOWN = 34,
-    DIRECTION_BY_KEY = {
-      [KEY_LEFT]: "left",
-      [KEY_UP]: "up",
-      [KEY_RIGHT]: "right",
-      [KEY_DOWN]: "down",
-    };
-  function isBackKey(e) {
-    return e === KEY_BACK || e === KEY_BACKSPACE || e === KEY_ESCAPE;
-  }
-  function isSelectKey(e) {
-    return e === KEY_OK;
-  }
-  var DIGITS = "0123456789".split(""),
-    ALPHABET = "abcdefghijklmnopqrstuvwxyz".split(""),
-    KEYBOARD_LAYOUTS = {
-      ar: {
-        label: "العربية",
-        columns: 10,
-        keys: "ا ب ت ث ج ح خ د ذ ر ز س ش ص ض ط ظ ع غ ف ق ك ل م ن ه و ي ء أ إ آ ة ى ئ ؤ".split(" "),
-      },
-      en: {
-        label: "English",
-        columns: 10,
-        keys: ALPHABET,
-      },
-      es: {
-        label: "Español",
-        columns: 10,
-        keys: ALPHABET.concat("ñ á é í ó ú ü".split(" ")),
-      },
-      fr: {
-        label: "Français",
-        columns: 10,
-        keys: ALPHABET.concat("à â ç é è ê ë î ï ô ù û".split(" ")),
-      },
-    },
-    Bn = {
-      tr: {
-        label: "Türkçe",
-        columns: 10,
-        keys: ALPHABET.concat("ç ğ ı ö ş ü".split(" ")),
-      },
-      de: {
-        label: "Deutsch",
-        columns: 10,
-        keys: ALPHABET.concat("ä ö ü ß".split(" ")),
-      },
-      ru: {
-        label: "Русский",
-        columns: 11,
-        keys: "а б в г д е ё ж з и й к л м н о п р с т у ф х ц ч ш щ ъ ы ь э ю я".split(" "),
-      },
-      pt: {
-        label: "Português",
-        columns: 10,
-        keys: ALPHABET.concat("ã á â à ç é ê í ó ô õ ú".split(" ")),
-      },
-      it: {
-        label: "Italiano",
-        columns: 10,
-        keys: ALPHABET.concat("à è é ì ò ù".split(" ")),
-      },
-      hi: {
-        label: "हिन्दी",
-        columns: 11,
-        keys: "अ आ इ ई उ ऊ ए ऐ ओ औ क ख ग घ च छ ज झ ट ठ ड ढ ण त थ द ध न प फ ब भ म य र ल व श ष स ह".split(
-          " ",
-        ),
-      },
-    },
-    Vn = Object.assign({}, KEYBOARD_LAYOUTS, Bn),
-    Wn = [".", "-", "_", ":", "/", "@"];
   function Jn(e) {
     let t = e || {},
       n = t.onChange || function () {},
@@ -6099,7 +5491,7 @@
             let e = LOCALES.map((e) => e.code);
             return (
               (function (e) {
-                en = e;
+                setLanguageCode(e);
                 try {
                   localStorage.setItem(LANGUAGE_KEY, e);
                 } catch (e) {}
