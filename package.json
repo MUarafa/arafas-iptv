@@ -1,0 +1,16 @@
+{
+  "name": "arafas-iptv",
+  "version": "1.0.6",
+  "description": "An IPTV player for LG webOS TVs that recovers from broken streams instead of exiting",
+  "license": "GPL-3.0-or-later",
+  "private": true,
+  "scripts": {
+    "build": "esbuild src/app.js --bundle --minify --charset=utf8 --target=chrome53 --outfile=app/bundle.js --log-level=warning",
+    "format": "prettier --write --print-width 100 src/app.js",
+    "check": "node --check src/app.js"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.0",
+    "prettier": "^3.0.0"
+  }
+}

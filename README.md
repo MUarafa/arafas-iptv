@@ -90,16 +90,20 @@ and password — or pick **Free TV** and watch straight away.
 
 Honest disclosure: the original pre-build sources were lost with a laptop. This
 repository was rebuilt by pulling the running app **off the TV itself** over the Chrome
-DevTools Protocol, so `app/bundle.js` is currently the shipped, minified bundle rather
-than readable modules.
+DevTools Protocol — see [docs/RECOVERY.md](docs/RECOVERY.md) for how.
 
-It runs, it is the real thing, and every fix above was made against it by targeted,
-verified patches. But it is not yet source you can comfortably read or contribute to —
-turning it back into modules is the active piece of work. `docs/analysis/pretty.js` is
-a reformatted copy to navigate by in the meantime, and `docs/RECOVERY.md` explains how
-the recovery was done.
+Where that leaves the code today:
 
-If that story interests you more than it worries you, contributions are very welcome.
+- `src/app.js` **is** the source, and `app/bundle.js` is generated from it
+  (`npm run build`, esbuild, targeting Chromium 53). The round trip is verified on
+  real TVs, not just in theory.
+- It is one 5,000-line file whose identifiers still carry their minified names
+  (`e`, `t2`, `sn`). The structure reads fine; the names do not.
+- **Splitting it into named modules is the active work** — player engine, router,
+  focus engine, Xtream client, and one module per screen.
+
+So: contributable, but not yet comfortable. If you want a good first issue, take one
+screen and give it real names.
 
 ## Licence
 

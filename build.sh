@@ -23,6 +23,13 @@ PLACEHOLDER='{url:"",username:"",password:""}'
 command -v node >/dev/null || { echo "node not found on PATH" >&2; exit 1; }
 command -v ares-package >/dev/null || { echo "ares-package not found on PATH" >&2; exit 1; }
 
+# Rebuild the bundle from src/ when the dev tooling is installed. A plain clone
+# without `npm install` still packages the committed bundle, so this stays optional.
+if [ -d node_modules/esbuild ]; then
+  npm run --silent build || { echo "bundle build failed" >&2; exit 1; }
+  echo "bundle rebuilt from src/"
+fi
+
 node --check app/bundle.js || exit 1
 echo "syntax ok"
 
