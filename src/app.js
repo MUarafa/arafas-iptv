@@ -360,36 +360,36 @@
       username: "",
       password: "",
     },
-    R = "iptv:credentials",
-    K = "iptv:source",
-    z = null,
-    B = null;
+    CREDENTIALS_KEY = "iptv:credentials",
+    SOURCE_KIND_KEY = "iptv:source",
+    credentialsCache = null,
+    sourceKindCache = null;
   function sourceKind() {
-    if (B) return B;
+    if (sourceKindCache) return sourceKindCache;
     try {
-      B = localStorage.getItem(K) || "xtream";
+      sourceKindCache = localStorage.getItem(SOURCE_KIND_KEY) || "xtream";
     } catch (e) {
-      B = "xtream";
+      sourceKindCache = "xtream";
     }
-    return B;
+    return sourceKindCache;
   }
-  function W() {
-    if (z) return z;
+  function readCredentials() {
+    if (credentialsCache) return credentialsCache;
     try {
-      let e = localStorage.getItem(R);
-      e && (z = JSON.parse(e));
+      let e = localStorage.getItem(CREDENTIALS_KEY);
+      e && (credentialsCache = JSON.parse(e));
     } catch (e) {
-      z = null;
+      credentialsCache = null;
     }
-    return z;
+    return credentialsCache;
   }
-  function J() {
-    let e = W();
+  function requireCredentials() {
+    let e = readCredentials();
     if (!e) throw new Error("Not signed in");
     return e;
   }
-  var H = "iptv:settings",
-    X = {
+  var SETTINGS_KEY = "iptv:settings",
+    DEFAULT_SETTINGS = {
       preferLowerBitrate: !0,
       liveFormat: "ts",
       showChannelNumbers: !0,
@@ -399,30 +399,30 @@
       heroTeaser: !0,
       heroTeaserSound: !0,
     },
-    G = null;
+    settingsCache = null;
   function settings() {
-    if (G) return G;
-    G = Object.assign({}, X);
+    if (settingsCache) return settingsCache;
+    settingsCache = Object.assign({}, DEFAULT_SETTINGS);
     try {
-      let e = localStorage.getItem(H);
-      e && Object.assign(G, JSON.parse(e));
+      let e = localStorage.getItem(SETTINGS_KEY);
+      e && Object.assign(settingsCache, JSON.parse(e));
     } catch (e) {}
-    return G;
+    return settingsCache;
   }
   function saveSettings(e) {
     let t = Object.assign(settings(), e);
-    G = t;
+    settingsCache = t;
     try {
-      localStorage.setItem(H, JSON.stringify(t));
+      localStorage.setItem(SETTINGS_KEY, JSON.stringify(t));
     } catch (e) {}
     return t;
   }
-  var Q = "iptv:cache:",
-    Y = new Map(),
-    ee = 864e5,
-    te = 216e5,
-    ne = 6048e5,
-    ie = 3e5;
+  var CACHE_PREFIX = "iptv:cache:",
+    cacheMemory = new Map(),
+    DAY_MS = 864e5,
+    SIX_HOURS_MS = 216e5,
+    WEEK_MS = 6048e5,
+    FIVE_MINUTES_MS = 3e5;
   function now() {
     return Date.now();
   }
@@ -430,9 +430,9 @@
     let i,
       r = {
         value: t,
-        expires: now() + (n || ie),
+        expires: now() + (n || FIVE_MINUTES_MS),
       };
-    Y.set(e, r);
+    cacheMemory.set(e, r);
     try {
       i = JSON.stringify(r);
     } catch (e) {
@@ -440,7 +440,7 @@
     }
     if (!(i.length > 262144))
       try {
-        localStorage.setItem(Q + e, i);
+        localStorage.setItem(CACHE_PREFIX + e, i);
       } catch (t) {
         !(function (e) {
           let t = [],
@@ -457,7 +457,7 @@
             } catch (e) {
               continue;
             }
-            if (!n || n.slice(0, Q.length) !== Q) continue;
+            if (!n || n.slice(0, CACHE_PREFIX.length) !== CACHE_PREFIX) continue;
             let i = 0;
             try {
               i = (JSON.parse(localStorage.getItem(n)) || {}).expires || 0;
@@ -474,34 +474,34 @@
             } catch (e) {}
         })(8);
         try {
-          localStorage.setItem(Q + e, i);
+          localStorage.setItem(CACHE_PREFIX + e, i);
         } catch (e) {}
       }
   }
   var ae = "iptv:lastRefresh";
   function le() {
-    Y.clear();
+    cacheMemory.clear();
     let e = [];
     try {
       for (let t = 0; t < localStorage.length; t++) {
         let n = localStorage.key(t);
-        n && n.slice(0, Q.length) === Q && e.push(n);
+        n && n.slice(0, CACHE_PREFIX.length) === CACHE_PREFIX && e.push(n);
       }
       for (let t of e) localStorage.removeItem(t);
     } catch (e) {}
   }
-  var oe = new Map();
+  var pendingCacheReads = new Map();
   function cached(e, t, n, i) {
     let r = (function (e) {
       let t,
         n,
-        i = Y.get(e);
+        i = cacheMemory.get(e);
       if (i) {
         if (i.expires > now()) return i.value;
-        Y.delete(e);
+        cacheMemory.delete(e);
       }
       try {
-        t = localStorage.getItem(Q + e);
+        t = localStorage.getItem(CACHE_PREFIX + e);
       } catch (e) {
         return null;
       }
@@ -510,45 +510,45 @@
         n = JSON.parse(t);
       } catch (t) {
         try {
-          localStorage.removeItem(Q + e);
+          localStorage.removeItem(CACHE_PREFIX + e);
         } catch (e) {}
         return null;
       }
       if (!n || n.expires <= now()) {
         try {
-          localStorage.removeItem(Q + e);
+          localStorage.removeItem(CACHE_PREFIX + e);
         } catch (e) {}
         return null;
       }
-      return (Y.set(e, n), n.value);
+      return (cacheMemory.set(e, n), n.value);
     })(e);
     if (null != r) return Promise.resolve(r);
-    if (oe.has(e)) return oe.get(e);
+    if (pendingCacheReads.has(e)) return pendingCacheReads.get(e);
     let s = n()
       .then(
         (n) => (
           i && i.memoryOnly
             ? (function (e, t, n) {
-                Y.set(e, {
+                cacheMemory.set(e, {
                   value: t,
-                  expires: now() + (n || te),
+                  expires: now() + (n || SIX_HOURS_MS),
                 });
               })(e, n, t)
             : se(e, n, t),
-          oe.delete(e),
+          pendingCacheReads.delete(e),
           n
         ),
       )
       .catch((t) => {
-        throw (oe.delete(e), t);
+        throw (pendingCacheReads.delete(e), t);
       });
-    return (oe.set(e, s), s);
+    return (pendingCacheReads.set(e, s), s);
   }
   function portalBase() {
-    return J().url.replace(/\/+$/, "");
+    return requireCredentials().url.replace(/\/+$/, "");
   }
   function de() {
-    let e = J();
+    let e = requireCredentials();
     return encodeURIComponent(e.username) + "/" + encodeURIComponent(e.password);
   }
   function playerApi(e, t) {
@@ -558,7 +558,7 @@
       try {
         let r = yield fetch(
           (function (e, t) {
-            let n = J(),
+            let n = requireCredentials(),
               i = new URLSearchParams();
             if (
               (i.set("username", n.username),
@@ -607,7 +607,7 @@
     });
   }
   function pe(e, t) {
-    return cached("cats:" + e, ee, () =>
+    return cached("cats:" + e, DAY_MS, () =>
       runAsync(null, null, function* () {
         return asArray(yield playerApi(t)).map((t) => ({
           id: String(t.category_id),
@@ -665,7 +665,7 @@
   function ke(e) {
     return cached(
       "live:" + e,
-      te,
+      SIX_HOURS_MS,
       () =>
         runAsync(null, null, function* () {
           return asArray(
@@ -682,7 +682,7 @@
   function Ce(e) {
     return cached(
       "vod:" + e,
-      te,
+      SIX_HOURS_MS,
       () =>
         runAsync(null, null, function* () {
           return asArray(
@@ -699,7 +699,7 @@
   function Se(e) {
     return cached(
       "series:" + e,
-      te,
+      SIX_HOURS_MS,
       () =>
         runAsync(null, null, function* () {
           return asArray(
@@ -714,7 +714,7 @@
     );
   }
   function _e(e) {
-    return cached("movieinfo:" + e, ne, () =>
+    return cached("movieinfo:" + e, WEEK_MS, () =>
       runAsync(null, null, function* () {
         let t = yield playerApi("get_vod_info", {
             vod_id: e,
@@ -742,7 +742,7 @@
   function Te(e) {
     return cached(
       "seriesinfo:" + e,
-      ne,
+      WEEK_MS,
       () =>
         runAsync(null, null, function* () {
           let t = yield playerApi("get_series_info", {
@@ -787,7 +787,7 @@
   function Le(e, t) {
     return cached(
       "epg:" + e,
-      ie,
+      FIVE_MINUTES_MS,
       () =>
         runAsync(null, null, function* () {
           let n = yield playerApi("get_short_epg", {
@@ -831,7 +831,7 @@
   var Oe = {};
   t(Oe, {
     authenticate: () => Ye,
-    build: () => Re,
+    build: () => loadM3uPlaylist,
     episodeUrl: () => Qe,
     liveCategories: () => Ke,
     liveStreams: () => ze,
@@ -971,12 +971,12 @@
       count: s,
     };
   }
-  function Re() {
+  function loadM3uPlaylist() {
     return Pe
       ? Promise.resolve(Pe)
       : Me ||
           (Me = runAsync(null, null, function* () {
-            let e = J(),
+            let e = requireCredentials(),
               t = yield fetch(e.url);
             if (!t.ok) throw new Error("Playlist download failed (HTTP " + t.status + ")");
             let n = yield t.text();
@@ -987,12 +987,12 @@
   }
   function Ke() {
     return runAsync(this, null, function* () {
-      return (yield Re()).categories;
+      return (yield loadM3uPlaylist()).categories;
     });
   }
   function ze(e) {
     return runAsync(this, null, function* () {
-      return (yield Re()).items[e] || [];
+      return (yield loadM3uPlaylist()).items[e] || [];
     });
   }
   function Be() {
@@ -1027,7 +1027,7 @@
   }
   function Ye() {
     return runAsync(this, null, function* () {
-      let e = yield Re();
+      let e = yield loadM3uPlaylist();
       if (!e.count) throw new Error("That playlist has no channels in it");
       return {
         status: "Active",
@@ -1045,10 +1045,10 @@
   }
   var tt = {};
   t(tt, {
-    ADULT_CATEGORY_ID: () => wt,
-    KEEP_ADULT_SHELF: () => bt,
+    ADULT_CATEGORY_ID: () => ADULT_CATEGORY_KEY,
+    KEEP_ADULT_SHELF: () => hideAdultChannels,
     authenticate: () => Dt,
-    build: () => St,
+    build: () => loadFreePlaylist,
     episodeUrl: () => qt,
     liveCategories: () => _t,
     liveStreams: () => Tt,
@@ -1136,7 +1136,7 @@
   function at(e) {
     return -1 !== st.indexOf(e.country);
   }
-  function lt(e, t) {
+  function matchesCategory(e, t) {
     return (e.categories || []).some((e) => String(e).toLowerCase() === t);
   }
   var ot = new RegExp(
@@ -1180,7 +1180,7 @@
       /(nile|النيل|المصرية)/i,
     ],
     ht = new RegExp("(مصر|masr|misr|egypt|" + mt.map((e) => e.source).join("|") + ")", "i");
-  function ft(e, t) {
+  function firstMatchIndex(e, t) {
     for (let n = 0; n < t.length; n++) if (t[n].test(e)) return n;
     return t.length;
   }
@@ -1192,43 +1192,47 @@
       {
         id: "featured:sports",
         name: "⭐  Sports Channels",
-        match: (e) => lt(e, "sports"),
-        rank: (e) => ft(e.name, ut),
+        match: (e) => matchesCategory(e, "sports"),
+        rank: (e) => firstMatchIndex(e.name, ut),
       },
       {
         id: "featured:best-movies",
         name: "⭐  Best Movie Channels",
-        match: (e) => ot.test(e.name) || lt(e, "movies"),
+        match: (e) => ot.test(e.name) || matchesCategory(e, "movies"),
         rank: (e) => (ot.test(e.name) ? 0 : 1),
       },
       {
         id: "featured:quran",
         name: "⭐  قرآن",
         match: (e) => ct.test(e.name),
-        rank: (e) => ft(e.name, dt),
+        rank: (e) => firstMatchIndex(e.name, dt),
         autoPlayFirst: !0,
       },
       {
         id: "featured:egypt",
         name: "⭐  مصر",
         match: (e) => "EG" === e.country || ht.test(e.name),
-        rank: (e) => ft(e.name, mt),
+        rank: (e) => firstMatchIndex(e.name, mt),
       },
       {
         id: "featured:arab-sports",
         name: "⭐  Arab Sports",
-        match: (e) => at(e) && lt(e, "sports"),
-        rank: (e) => ft(e.name, ut),
+        match: (e) => at(e) && matchesCategory(e, "sports"),
+        rank: (e) => firstMatchIndex(e.name, ut),
       },
       {
         id: "featured:arab-news",
         name: "⭐  Arab News",
-        match: (e) => at(e) && lt(e, "news"),
+        match: (e) => at(e) && matchesCategory(e, "news"),
       },
       {
         id: "featured:arab-entertainment",
         name: "⭐  Arab Entertainment",
-        match: (e) => at(e) && (lt(e, "entertainment") || lt(e, "series") || lt(e, "movies")),
+        match: (e) =>
+          at(e) &&
+          (matchesCategory(e, "entertainment") ||
+            matchesCategory(e, "series") ||
+            matchesCategory(e, "movies")),
       },
       {
         id: "featured:world-news",
@@ -1239,23 +1243,23 @@
       {
         id: "featured:kids",
         name: "⭐  Kids",
-        match: (e) => lt(e, "kids") || lt(e, "animation"),
+        match: (e) => matchesCategory(e, "kids") || matchesCategory(e, "animation"),
       },
       {
         id: "featured:documentary",
         name: "⭐  Documentary",
-        match: (e) => lt(e, "documentary"),
+        match: (e) => matchesCategory(e, "documentary"),
       },
       {
         id: "featured:music",
         name: "⭐  Music",
-        match: (e) => lt(e, "music"),
+        match: (e) => matchesCategory(e, "music"),
       },
     ],
-    vt = null,
-    yt = null,
-    bt = !0,
-    wt = "adult:x";
+    freePlaylistCache = null,
+    freePlaylistPromise = null,
+    hideAdultChannels = !0,
+    ADULT_CATEGORY_KEY = "adult:x";
   function xt(e) {
     let t = String(e || "").toLowerCase();
     return /2160|4k/.test(t)
@@ -1285,11 +1289,11 @@
       return t.json();
     });
   }
-  function St() {
-    return vt
-      ? Promise.resolve(vt)
-      : yt ||
-          (yt = runAsync(null, null, function* () {
+  function loadFreePlaylist() {
+    return freePlaylistCache
+      ? Promise.resolve(freePlaylistCache)
+      : freePlaylistPromise ||
+          (freePlaylistPromise = runAsync(null, null, function* () {
             let [e, t, n] = yield Promise.all([Ct("channels"), Ct("streams"), Ct("countries")]),
               i = Object.create(null);
             for (let t of e) i[t.id] = t;
@@ -1329,7 +1333,7 @@
                   number: null,
                 };
               if (kt(n)) {
-                (u++, bt && o.push(d));
+                (u++, hideAdultChannels && o.push(d));
                 continue;
               }
               c++;
@@ -1397,17 +1401,17 @@
                 (h[t] = s[e]));
             }
             return (
-              bt &&
+              hideAdultChannels &&
                 o.length &&
                 (m.push({
-                  id: wt,
+                  id: ADULT_CATEGORY_KEY,
                   name: "🔒  X  (" + o.length + ")",
                   kind: "live",
                   locked: !0,
                 }),
-                (h[wt] = o)),
-              (yt = null),
-              (vt = {
+                (h[ADULT_CATEGORY_KEY] = o)),
+              (freePlaylistPromise = null),
+              (freePlaylistCache = {
                 categories: m,
                 items: h,
                 kept: c,
@@ -1418,12 +1422,12 @@
   }
   function _t() {
     return runAsync(this, null, function* () {
-      return (yield St()).categories;
+      return (yield loadFreePlaylist()).categories;
     });
   }
   function Tt(e) {
     return runAsync(this, null, function* () {
-      return (yield St()).items[e] || [];
+      return (yield loadFreePlaylist()).items[e] || [];
     });
   }
   function Lt() {
@@ -1458,7 +1462,7 @@
   }
   function Dt() {
     return runAsync(this, null, function* () {
-      let e = yield St();
+      let e = yield loadFreePlaylist();
       if (!e.kept) throw new Error("Could not load the free playlist");
       return {
         status: "Active",
@@ -1472,10 +1476,10 @@
     });
   }
   function jt() {
-    return vt
+    return freePlaylistCache
       ? {
-          kept: vt.kept,
-          dropped: vt.dropped,
+          kept: freePlaylistCache.kept,
+          dropped: freePlaylistCache.dropped,
         }
       : null;
   }
@@ -1496,19 +1500,19 @@
       singleConnection: "xtream" === e,
     };
   }
-  function zt() {
+  function liveCategories() {
     return activeAdapter().liveCategories();
   }
-  function Bt(e) {
+  function liveStreams(e) {
     return activeAdapter().liveStreams(e);
   }
-  function Vt() {
+  function vodCategories() {
     return activeAdapter().vodCategories();
   }
-  function Wt(e) {
+  function vodStreams(e) {
     return activeAdapter().vodStreams(e);
   }
-  function Jt() {
+  function seriesCategories() {
     return activeAdapter().seriesCategories();
   }
   function Ht(e) {
@@ -1912,37 +1916,37 @@
   function translate(e) {
     return (MESSAGES[currentLanguage()] || MESSAGES.en)[e] || MESSAGES.en[e] || e;
   }
-  var an = "http://www.w3.org/2000/svg",
-    ln = 0;
+  var SVG_NS = "http://www.w3.org/2000/svg",
+    gradientSeq = 0;
   function on(e) {
-    let t = "brand-grad-" + ++ln,
-      n = document.createElementNS(an, "svg");
+    let t = "brand-grad-" + ++gradientSeq,
+      n = document.createElementNS(SVG_NS, "svg");
     (n.setAttribute("viewBox", "0 0 100 100"),
       n.setAttribute("width", String(e || 44)),
       n.setAttribute("height", String(e || 44)),
       n.setAttribute("class", "logo-mark"),
       n.setAttribute("aria-hidden", "true"));
-    let i = document.createElementNS(an, "defs"),
-      r = document.createElementNS(an, "linearGradient");
+    let i = document.createElementNS(SVG_NS, "defs"),
+      r = document.createElementNS(SVG_NS, "linearGradient");
     (r.setAttribute("id", t),
       r.setAttribute("x1", "0"),
       r.setAttribute("y1", "0"),
       r.setAttribute("x2", "0"),
       r.setAttribute("y2", "1"));
-    let s = document.createElementNS(an, "stop");
+    let s = document.createElementNS(SVG_NS, "stop");
     (s.setAttribute("offset", "0"), s.setAttribute("stop-color", "#ff4d4d"));
-    let a = document.createElementNS(an, "stop");
+    let a = document.createElementNS(SVG_NS, "stop");
     (a.setAttribute("offset", "1"),
       a.setAttribute("stop-color", "#c40810"),
       r.appendChild(s),
       r.appendChild(a),
       i.appendChild(r),
       n.appendChild(i));
-    let l = document.createElementNS(an, "path");
+    let l = document.createElementNS(SVG_NS, "path");
     (l.setAttribute("d", "M50 6 L94 90 L70 90 L50 52 L30 90 L6 90 Z"),
       l.setAttribute("fill", "url(#" + t + ")"),
       n.appendChild(l));
-    let o = document.createElementNS(an, "path");
+    let o = document.createElementNS(SVG_NS, "path");
     return (
       o.setAttribute("d", "M42 62 L66 77 L42 92 Z"),
       o.setAttribute("fill", "#ffffff"),
@@ -1967,7 +1971,7 @@
       t
     );
   }
-  var cn = [
+  var NAV_ITEMS = [
     {
       id: "continue",
       icon: "▶",
@@ -2036,7 +2040,7 @@
     });
     (r.appendChild(un(44)), t.appendChild(n), t.appendChild(r), e.appendChild(t));
     let s = {};
-    for (let t of cn) {
+    for (let t of NAV_ITEMS) {
       (t.personalOnly, 0);
       let n = createElement(
         "div",
@@ -2136,7 +2140,7 @@
       re: /(^|[\s\[\(_-])(sd|480p?|420p?|low)([\s\]\)_-]|$)/i,
     },
   ];
-  function hn(e) {
+  function qualityTagFor(e) {
     for (let t of mn) if (t.re.test(e)) return t;
     return null;
   }
@@ -2155,57 +2159,57 @@
       t.toLowerCase().trim()
     );
   }
-  var pn = null,
+  var channelsByName = null,
     gn = null;
-  function vn(e) {
+  function channelSources(e) {
     let t = {
       id: e.id,
       name: e.name,
       logo: e.logo,
       categoryId: e.categoryId,
-      quality: (hn(e.name) || {}).tag || null,
-      rank: null != (hn(e.name) || {}).rank ? hn(e.name).rank : 2,
+      quality: (qualityTagFor(e.name) || {}).tag || null,
+      rank: null != (qualityTagFor(e.name) || {}).rank ? qualityTagFor(e.name).rank : 2,
     };
-    if (!pn) return [t];
-    let n = pn[fn(e.name)];
+    if (!channelsByName) return [t];
+    let n = channelsByName[fn(e.name)];
     if (!n || n.length <= 1) return [t];
     let i = n.filter((t) => t.id !== e.id);
     return [t].concat(i);
   }
-  var yn = 37,
-    bn = 38,
-    wn = 39,
-    xn = 40,
-    kn = 13,
-    Cn = 461,
-    Sn = 8,
-    _n = 27,
-    Tn = 404,
-    Ln = 405,
-    In = 406,
-    Nn = 415,
-    An = 19,
-    En = 179,
-    On = 413,
-    Pn = 412,
-    Mn = 417,
-    Fn = 33,
-    qn = 34,
-    Dn = {
-      [yn]: "left",
-      [bn]: "up",
-      [wn]: "right",
-      [xn]: "down",
+  var KEY_LEFT = 37,
+    KEY_UP = 38,
+    KEY_RIGHT = 39,
+    KEY_DOWN = 40,
+    KEY_OK = 13,
+    KEY_BACK = 461,
+    KEY_BACKSPACE = 8,
+    KEY_ESCAPE = 27,
+    KEY_GREEN = 404,
+    KEY_YELLOW = 405,
+    KEY_BLUE = 406,
+    KEY_PLAY = 415,
+    KEY_PAUSE = 19,
+    KEY_PLAY_PAUSE = 179,
+    KEY_STOP = 413,
+    KEY_REWIND = 412,
+    KEY_FORWARD = 417,
+    KEY_CHANNEL_UP = 33,
+    KEY_CHANNEL_DOWN = 34,
+    DIRECTION_BY_KEY = {
+      [KEY_LEFT]: "left",
+      [KEY_UP]: "up",
+      [KEY_RIGHT]: "right",
+      [KEY_DOWN]: "down",
     };
-  function jn(e) {
-    return e === Cn || e === Sn || e === _n;
+  function isBackKey(e) {
+    return e === KEY_BACK || e === KEY_BACKSPACE || e === KEY_ESCAPE;
   }
-  function Un(e) {
-    return e === kn;
+  function isSelectKey(e) {
+    return e === KEY_OK;
   }
-  var Rn = "0123456789".split(""),
-    Kn = "abcdefghijklmnopqrstuvwxyz".split(""),
-    zn = {
+  var DIGITS = "0123456789".split(""),
+    ALPHABET = "abcdefghijklmnopqrstuvwxyz".split(""),
+    KEYBOARD_LAYOUTS = {
       ar: {
         label: "العربية",
         columns: 10,
@@ -2214,29 +2218,29 @@
       en: {
         label: "English",
         columns: 10,
-        keys: Kn,
+        keys: ALPHABET,
       },
       es: {
         label: "Español",
         columns: 10,
-        keys: Kn.concat("ñ á é í ó ú ü".split(" ")),
+        keys: ALPHABET.concat("ñ á é í ó ú ü".split(" ")),
       },
       fr: {
         label: "Français",
         columns: 10,
-        keys: Kn.concat("à â ç é è ê ë î ï ô ù û".split(" ")),
+        keys: ALPHABET.concat("à â ç é è ê ë î ï ô ù û".split(" ")),
       },
     },
     Bn = {
       tr: {
         label: "Türkçe",
         columns: 10,
-        keys: Kn.concat("ç ğ ı ö ş ü".split(" ")),
+        keys: ALPHABET.concat("ç ğ ı ö ş ü".split(" ")),
       },
       de: {
         label: "Deutsch",
         columns: 10,
-        keys: Kn.concat("ä ö ü ß".split(" ")),
+        keys: ALPHABET.concat("ä ö ü ß".split(" ")),
       },
       ru: {
         label: "Русский",
@@ -2246,12 +2250,12 @@
       pt: {
         label: "Português",
         columns: 10,
-        keys: Kn.concat("ã á â à ç é ê í ó ô õ ú".split(" ")),
+        keys: ALPHABET.concat("ã á â à ç é ê í ó ô õ ú".split(" ")),
       },
       it: {
         label: "Italiano",
         columns: 10,
-        keys: Kn.concat("à è é ì ò ù".split(" ")),
+        keys: ALPHABET.concat("à è é ì ò ù".split(" ")),
       },
       hi: {
         label: "हिन्दी",
@@ -2261,7 +2265,7 @@
         ),
       },
     },
-    Vn = Object.assign({}, zn, Bn),
+    Vn = Object.assign({}, KEYBOARD_LAYOUTS, Bn),
     Wn = [".", "-", "_", ":", "/", "@"];
   function Jn(e) {
     let t = e || {},
@@ -2345,7 +2349,7 @@
     }
     function k() {
       clearChildren(c);
-      let e = Object.keys(l ? Vn : zn);
+      let e = Object.keys(l ? Vn : KEYBOARD_LAYOUTS);
       for (let t of e) {
         let e = createElement("div", {
           class: "kb-lang focusable" + (t === a ? " active" : ""),
@@ -2374,7 +2378,7 @@
         n = "calc((100% - " + 10 * (t - 1) + "px) / " + t + ")";
       e.keys
         .map((e) => x(e, null, () => g(e)))
-        .concat(Rn.map((e) => x(e, "kb-key-digit", () => g(e))))
+        .concat(DIGITS.map((e) => x(e, "kb-key-digit", () => g(e))))
         .concat(Wn.map((e) => x(e, "kb-key-symbol", () => g(e))))
         .forEach((e, i) =>
           (function (e, t) {
@@ -2483,7 +2487,7 @@
     },
   ];
   function ei() {
-    let e = W() || U,
+    let e = readCredentials() || U,
       t = !1,
       s = null,
       a = createElement("div", {
@@ -2699,14 +2703,14 @@
             (a.textContent = ""),
             (h.textContent = r || translate("welcome.connecting")),
             (function (e) {
-              B = e;
+              sourceKindCache = e;
               try {
-                localStorage.setItem(K, e);
+                localStorage.setItem(SOURCE_KIND_KEY, e);
               } catch (e) {}
             })(e),
             i &&
               (function (e) {
-                z = {
+                credentialsCache = {
                   url: String(e.url || "")
                     .trim()
                     .replace(/\/+$/, ""),
@@ -2714,7 +2718,7 @@
                   password: String(e.password || "").trim(),
                 };
                 try {
-                  localStorage.setItem(R, JSON.stringify(z));
+                  localStorage.setItem(CREDENTIALS_KEY, JSON.stringify(credentialsCache));
                 } catch (e) {}
               })(i),
             et && et());
@@ -2791,11 +2795,11 @@
           clearChildren(S);
         },
         initialFocus: () => l.querySelector(".welcome-option"),
-        onKey: (e) => !(!jn(e) || !s) && (_(), !0),
+        onKey: (e) => !(!isBackKey(e) || !s) && (_(), !0),
       }
     );
   }
-  function ti(e) {
+  function createPage(e) {
     let t = e || {},
       n = createElement("div", {
         class: "page",
@@ -2889,7 +2893,7 @@
   }
   var li = "iptv:resume",
     oi = null;
-  function ui() {
+  function channelHealth() {
     if (oi) return oi;
     oi = {};
     try {
@@ -2908,12 +2912,12 @@
   }
   function mi(e, t, n) {
     if ("live" === e.kind) return;
-    let i = ui(),
+    let i = channelHealth(),
       r = di(e.kind, e.id);
     if (t < 60 || (n > 0 && t / n >= 0.93)) return (delete i[r], void ci());
     ((function (e, t) {
       if (!e) return;
-      let n = ui();
+      let n = channelHealth();
       for (let i of Object.keys(n)) {
         let r = n[i];
         r.seriesId === e && r.id !== t && delete n[i];
@@ -2941,10 +2945,10 @@
     ci();
   }
   function progressFor(e, t) {
-    return ui()[di(e, t)] || null;
+    return channelHealth()[di(e, t)] || null;
   }
   function fi(e) {
-    let t = ui(),
+    let t = channelHealth(),
       n = Object.keys(t)
         .map((e) => t[e])
         .sort((e, t) => t.updatedAt - e.updatedAt),
@@ -3394,7 +3398,7 @@
     }
     function M() {
       return runAsync(this, null, function* () {
-        let e = yield Vt(),
+        let e = yield vodCategories(),
           t = [];
         for (let n of Ti) {
           for (let i of e) n.test(i.name) && t.push(i);
@@ -3404,7 +3408,7 @@
         let n = [];
         for (let e of t.slice(0, 4))
           try {
-            n = n.concat(yield Wt(e.id));
+            n = n.concat(yield vodStreams(e.id));
           } catch (e) {}
         if (!n.length) return [];
         let i = Li(n.filter((e) => e.rating && e.rating >= 7))
@@ -3556,7 +3560,7 @@
         !0);
   }
   function ji() {
-    let e = ti({}),
+    let e = createPage({}),
       t = !1,
       i = null,
       s = [];
@@ -3672,19 +3676,19 @@
               let i = [
                   {
                     kind: "live",
-                    categories: zt,
-                    streams: Bt,
+                    categories: liveCategories,
+                    streams: liveStreams,
                     variant: "channel",
                   },
                   {
                     kind: "movie",
-                    categories: Vt,
-                    streams: Wt,
+                    categories: vodCategories,
+                    streams: vodStreams,
                     variant: "poster",
                   },
                   {
                     kind: "series",
-                    categories: Jt,
+                    categories: seriesCategories,
                     streams: Ht,
                     variant: "poster",
                   },
@@ -3735,26 +3739,26 @@
       onKey: () => !1,
     };
   }
-  var Ui = null,
-    Ri = null;
+  var toastEl = null,
+    toastTimer = null;
   function showToast(e, t) {
-    (Ui ||
-      ((Ui = createElement("div", {
+    (toastEl ||
+      ((toastEl = createElement("div", {
         class: "toast",
       })),
-      document.body.appendChild(Ui)),
-      (Ui.textContent = e),
-      Ui.classList.add("visible"),
-      Ri && clearTimeout(Ri),
-      (Ri = setTimeout(() => {
-        (Ui.classList.remove("visible"), (Ri = null));
+      document.body.appendChild(toastEl)),
+      (toastEl.textContent = e),
+      toastEl.classList.add("visible"),
+      toastTimer && clearTimeout(toastTimer),
+      (toastTimer = setTimeout(() => {
+        (toastEl.classList.remove("visible"), (toastTimer = null));
       }, t || 2600)));
   }
   var zi = "iptv:preferences",
-    Bi = null;
-  function Vi() {
-    if (Bi) return Bi;
-    Bi = {
+    playbackPrefsCache = null;
+  function playbackPrefs() {
+    if (playbackPrefsCache) return playbackPrefsCache;
+    playbackPrefsCache = {
       intro: {},
       fit: {},
     };
@@ -3762,14 +3766,16 @@
       let e = localStorage.getItem(zi);
       if (e) {
         let t = JSON.parse(e);
-        t && "object" == typeof t && ((Bi.intro = t.intro || {}), (Bi.fit = t.fit || {}));
+        t &&
+          "object" == typeof t &&
+          ((playbackPrefsCache.intro = t.intro || {}), (playbackPrefsCache.fit = t.fit || {}));
       }
     } catch (e) {}
-    return Bi;
+    return playbackPrefsCache;
   }
   function Wi() {
     try {
-      localStorage.setItem(zi, JSON.stringify(Bi));
+      localStorage.setItem(zi, JSON.stringify(playbackPrefsCache));
     } catch (e) {}
   }
   function Ji(e) {
@@ -3777,14 +3783,14 @@
   }
   function Hi(e, t) {
     if (!e || t < 15 || t > 420) return;
-    let n = Vi(),
+    let n = playbackPrefs(),
       i = Ji(e),
       r = n.intro[i] ? n.intro[i].slice() : [];
     (r.push(Math.round(t)), r.length > 5 && r.shift(), (n.intro[i] = r), Wi());
   }
   function Xi(e) {
     if (!e) return null;
-    let t = Vi().intro[Ji(e)];
+    let t = playbackPrefs().intro[Ji(e)];
     if (!t || !t.length) return null;
     let n = t.slice().sort((e, t) => e - t);
     return n[Math.floor(n.length / 2)];
@@ -3797,12 +3803,12 @@
     return e + ":" + t;
   }
   function Qi(e, t) {
-    return Vi().fit[$i(e, t)] || "fit";
+    return playbackPrefs().fit[$i(e, t)] || "fit";
   }
   function Yi(e, t) {
     let n = Qi(e, t);
     return (function (e, t, n) {
-      let i = Vi();
+      let i = playbackPrefs();
       return ("fit" === n ? delete i.fit[$i(e, t)] : (i.fit[$i(e, t)] = n), Wi(), n);
     })(e, t, Gi[(Gi.indexOf(n) + 1) % Gi.length]);
   }
@@ -4415,12 +4421,12 @@
         ];
       let e = settings().preferLowerBitrate ? 1 : 0,
         i = (function (e, t) {
-          let n = vn(e),
+          let n = channelSources(e),
             i = null == t ? 1 : t,
             r = n.filter((e) => e.rank >= i);
           return r.length ? r.sort((e, t) => e.rank - t.rank)[0] : n[0];
         })(t, e),
-        r = vn(t);
+        r = channelSources(t);
       return [i].concat(r.filter((e) => e.id !== i.id));
     }
     (a.on("loading", () => {
@@ -4512,7 +4518,7 @@
           })();
         else if (s === L)
           !(function () {
-            let e = vn(t);
+            let e = channelSources(t);
             (clearChildren(se),
               se.appendChild(
                 createElement("div", {
@@ -4620,7 +4626,7 @@
       },
       initialFocus: () => _,
       onKey: function (i) {
-        if (jn(i))
+        if (isBackKey(i))
           return se.hidden
             ? K.classList.contains("visible")
               ? (W(), !0)
@@ -4628,16 +4634,21 @@
             : (ae(), !0);
         if (!se.hidden) return !1;
         let r = K.classList.contains("visible");
-        if ((i === yn || i === Pn) && !n) return ($(-1), !0);
-        if ((i === wn || i === Mn) && !n) return ($(1), !0);
-        if (i === En || i === An || i === Nn) {
+        if ((i === KEY_LEFT || i === KEY_REWIND) && !n) return ($(-1), !0);
+        if ((i === KEY_RIGHT || i === KEY_FORWARD) && !n) return ($(1), !0);
+        if (i === KEY_PLAY_PAUSE || i === KEY_PAUSE || i === KEY_PLAY) {
           let e = a.togglePause();
           return ((_.textContent = e ? "▶" : "❚❚"), e && ne(), V(), !0);
         }
-        if (i === On) return (ne(), goBack(), !0);
+        if (i === KEY_STOP) return (ne(), goBack(), !0);
         if (n && e.siblings && e.siblings.length > 1) {
           let n = 0;
-          if ((i === bn || i === Fn ? (n = -1) : (i === xn || i === qn) && (n = 1), 0 !== n)) {
+          if (
+            (i === KEY_UP || i === KEY_CHANNEL_UP
+              ? (n = -1)
+              : (i === KEY_DOWN || i === KEY_CHANNEL_DOWN) && (n = 1),
+            0 !== n)
+          ) {
             let i = e.siblings.length,
               r = ((null == e.index ? 0 : e.index) + n + i) % i;
             return (
@@ -4652,7 +4663,7 @@
             );
           }
         }
-        return !D.hidden && Un(i) ? (te(), !0) : !r && (V(), focusElement(_), !0);
+        return !D.hidden && isSelectKey(i) ? (te(), !0) : !r && (V(), focusElement(_), !0);
       },
     };
   }
@@ -4660,7 +4671,7 @@
     return e ? Math.round(e / 60) + " min" : null;
   }
   function ar(e) {
-    let t = ti({}),
+    let t = createPage({}),
       s = createElement("div", {
         class: "details",
       });
@@ -5158,9 +5169,9 @@
       ? Promise.resolve(vr)
       : yr ||
           (yr = runAsync(null, null, function* () {
-            let e = yield gr(zt, Bt),
-              t = yield gr(Vt, Wt),
-              n = yield gr(Jt, Ht);
+            let e = yield gr(liveCategories, liveStreams),
+              t = yield gr(vodCategories, vodStreams),
+              n = yield gr(seriesCategories, Ht);
             return (
               (vr = {
                 live: fr(e),
@@ -5192,7 +5203,7 @@
           ? Promise.resolve(xr)
           : kr ||
               (kr = runAsync(null, null, function* () {
-                let e = yield St(),
+                let e = yield loadFreePlaylist(),
                   t = Object.create(null),
                   n = [];
                 for (let i of Object.keys(e.items))
@@ -5308,21 +5319,21 @@
   var Tr = {
     live: {
       title: "Live TV",
-      categories: () => zt(),
-      items: (e) => Bt(e),
+      categories: () => liveCategories(),
+      items: (e) => liveStreams(e),
       layout: "list",
       defaultCategory: /bein\s*sport.*\[\s*hd\s*\]/i,
       defaultItem: /bein\s*sports?\s*1\b/i,
     },
     movies: {
       title: "Movies",
-      categories: () => Vt(),
-      items: (e) => Wt(e),
+      categories: () => vodCategories(),
+      items: (e) => vodStreams(e),
       layout: "grid",
     },
     series: {
       title: "Series",
-      categories: () => Jt(),
+      categories: () => seriesCategories(),
       items: (e) => Ht(e),
       layout: "grid",
     },
@@ -5606,7 +5617,7 @@
         },
         initialFocus: () => d.querySelector(".category-button"),
         onKey: function (e) {
-          if (e === Ln || e === In) {
+          if (e === KEY_YELLOW || e === KEY_BLUE) {
             let e = focusedElement();
             if (e && e.__item) {
               let t = toggleFavourite(e.__item);
@@ -5651,7 +5662,7 @@
     },
   ];
   function Or() {
-    let e = ti({
+    let e = createPage({
         title: "My Favourites",
       }),
       t = createElement("div", {
@@ -5717,7 +5728,7 @@
       },
       initialFocus: () => e.node.querySelector(".card"),
       onKey(t) {
-        if (t === Ln || t === In) {
+        if (t === KEY_YELLOW || t === KEY_BLUE) {
           let t = focusedElement();
           if (t && t.__item)
             return (
@@ -5741,7 +5752,7 @@
     return Math.round(t / 60) + " min left";
   }
   function Fr() {
-    let e = ti({});
+    let e = createPage({});
     function t(e) {
       let t = progressFor(e.kind, e.id);
       pushRoute("player", {
@@ -5815,12 +5826,12 @@
       },
       initialFocus: () => e.node.querySelector(".card"),
       onKey(t) {
-        if (t === Ln || t === In) {
+        if (t === KEY_YELLOW || t === KEY_BLUE) {
           let t = focusedElement();
           if (t && t.__item)
             return (
               (function (e, t) {
-                (delete ui()[di(e, t)], ci());
+                (delete channelHealth()[di(e, t)], ci());
               })(t.__item.kind, t.__item.id),
               showToast("Removed from Continue Watching"),
               n(),
@@ -5834,7 +5845,7 @@
   }
   var qr = hr;
   function Dr() {
-    let e = ti({}),
+    let e = createPage({}),
       t = !1,
       s = createElement("input", {
         class: "field-input search-input",
@@ -5968,7 +5979,7 @@
         },
         initialFocus: () => u.firstKey(),
         onKey(e) {
-          if (e === Tn) {
+          if (e === KEY_GREEN) {
             let e = o.querySelector(".card");
             if (e) return (focusElement(e), !0);
           }
@@ -5978,7 +5989,7 @@
     );
   }
   function jr() {
-    let e = ti({
+    let e = createPage({
         title: translate("settings.title"),
       }),
       t = createElement("div", {
@@ -6093,11 +6104,11 @@
                   localStorage.setItem(LANGUAGE_KEY, e);
                 } catch (e) {}
                 applyDocumentLanguage();
-                for (var __i = 0; __i < cn.length; __i++) {
+                for (var __i = 0; __i < NAV_ITEMS.length; __i++) {
                   var __q = document.querySelector(
-                    '.rail-item[data-route="' + cn[__i].id + '"] .rail-label',
+                    '.rail-item[data-route="' + NAV_ITEMS[__i].id + '"] .rail-label',
                   );
-                  if (__q) __q.textContent = translate(cn[__i].key);
+                  if (__q) __q.textContent = translate(NAV_ITEMS[__i].key);
                 }
               })(e[(e.indexOf(currentLanguage()) + 1) % e.length]),
               void navigateRoot("settings", {})
@@ -6133,9 +6144,9 @@
           case "signOut":
             return (
               (function () {
-                z = null;
+                credentialsCache = null;
                 try {
-                  localStorage.removeItem(R);
+                  localStorage.removeItem(CREDENTIALS_KEY);
                 } catch (e) {}
               })(),
               le(),
@@ -6475,7 +6486,7 @@
         },
         initialFocus: () => o.querySelector(".category-button"),
         onKey(e) {
-          if (e === Ln || e === In) {
+          if (e === KEY_YELLOW || e === KEY_BLUE) {
             let e = focusedElement();
             if (e && e.__item) return (toggleFavourite(e.__item), !0);
           }
@@ -6521,9 +6532,9 @@
       document.addEventListener("keydown", (e) => {
         let n = e.keyCode;
         if (q(n)) return void e.preventDefault();
-        let i = Dn[n];
+        let i = DIRECTION_BY_KEY[n];
         if (i) return (moveFocus(i), void e.preventDefault());
-        if (Un(n))
+        if (isSelectKey(n))
           return (
             focusedEl &&
               focusedEl.dispatchEvent(
@@ -6533,14 +6544,14 @@
               ),
             void e.preventDefault()
           );
-        if (jn(n)) {
+        if (isBackKey(n)) {
           if (!goBack()) {
             focusElement(t.button(currentRoute()) || t.button("home"));
           }
           e.preventDefault();
         }
       }),
-      "free" === sourceKind() || null !== W()
+      "free" === sourceKind() || null !== readCredentials()
         ? ((function () {
             let e = 0;
             try {
@@ -6553,23 +6564,23 @@
             } catch (e) {}
           })(),
           navigateRoot("home", {}),
-          (pn
-            ? Promise.resolve(pn)
+          (channelsByName
+            ? Promise.resolve(channelsByName)
             : gn ||
               (gn = runAsync(null, null, function* () {
-                let e = yield zt(),
+                let e = yield liveCategories(),
                   t = Object.create(null);
                 for (let n of e) {
                   let e;
                   try {
-                    e = yield Bt(n.id);
+                    e = yield liveStreams(n.id);
                   } catch (e) {
                     continue;
                   }
                   for (let i of e) {
                     let e = fn(i.name);
                     if (!e) continue;
-                    let r = hn(i.name) || hn(n.name);
+                    let r = qualityTagFor(i.name) || qualityTagFor(n.name);
                     (t[e] || (t[e] = []),
                       t[e].push({
                         id: i.id,
@@ -6582,7 +6593,7 @@
                   }
                 }
                 for (let e of Object.keys(t)) t[e].sort((e, t) => e.rank - t.rank);
-                return ((gn = null), (pn = t));
+                return ((gn = null), (channelsByName = t));
               }))
           ).catch(() => {}))
         : navigateRoot("welcome", {}),
