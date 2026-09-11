@@ -1,7 +1,7 @@
 ARAFA'S IPTV — RECOVERY NOTE (2026-09-09)
 =========================================
 App on the TV : com.muara.iptv  "Arafa's IPTV"  v1.0.0  (vendor: Muara)
-Device        : roufys tv = 192.168.1.55 (LG 55UM7340PVA, webOS 4.10)
+Device        : an LG TV in developer mode (webOS 4.10)
 Status        : app is INSTALLED and WORKING on the TV. Nothing was broken.
 
 WHAT WAS RECOVERED (pulled off the TV over CDP, read-only):

@@ -12,7 +12,12 @@ cd "$(dirname "$0")"
 export PATH="/d/IPTV/node22/node-v22.22.2-win-x64:/d/IPTV/npm-global:$PATH"
 export HOME="/d/IPTV/webos-home"
 
-TVS=("roufys tv" "roufys tv 2")
+# Which TVs to install on. Override without editing this file:
+#   TV_DEVICES="living room,bedroom" ./build.sh install
+IFS="," read -r -a TVS <<< "${TV_DEVICES:-$(ares-setup-device -F -j 2>/dev/null | node -e "
+  let d=\"\";process.stdin.on(\"data\",c=>d+=c);process.stdin.on(\"end\",()=>{
+    try{const a=JSON.parse(d).filter(x=>x.name!==\"emulator\");console.log(a.map(x=>x.name).join(\",\"))}catch{console.log(\"\")}
+  })")}"
 PLACEHOLDER='{url:"",username:"",password:""}'
 
 command -v node >/dev/null || { echo "node not found on PATH" >&2; exit 1; }
