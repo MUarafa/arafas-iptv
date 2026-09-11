@@ -1,0 +1,11 @@
+# Shell scripts must keep LF: with core.autocrlf=true a Windows checkout would turn
+# build.sh into CRLF and bash fails on the stray \r.
+*.sh        text eol=lf
+
+# The app is shipped byte-for-byte as it was pulled off the TV and patched.
+# No line-ending conversion, ever.
+app/**      -text
+
+# Binary assets
+*.png       binary
+*.ipk       binary

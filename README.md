@@ -10,6 +10,20 @@
 > `docs/analysis/pretty.js` is a readable, reformatted copy of the same bundle:
 > **read that one** when you need to find code.
 
+## Get it
+
+Private repository: https://github.com/MUarafa/arafas-iptv
+
+```bash
+git clone https://github.com/MUarafa/arafas-iptv.git
+cd arafas-iptv
+./build.sh install
+```
+
+A fresh clone has no `secrets/account.json`, so that build leaves the sign-in fields
+empty; sign in once on the TV. To get pre-filled sign-in again, recreate
+`secrets/account.json` as `{"url": "...", "username": "...", "password": "..."}`.
+
 ## Install
 
 Toolchain lives on `D:` only — no Node on `C:`, no nvm.
