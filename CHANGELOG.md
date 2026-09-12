@@ -3,6 +3,18 @@
 All versions are what actually ran on real LG TVs; every fix below was verified on the
 device, not only in theory.
 
+## 1.0.8
+
+- **Say when the provider's video host has blocked a title.** When a provider streams
+  its films and series through a CDN that forbids video on the plan it is using, the
+  CDN answers with its own short "this video has been restricted" clip in place of the
+  content. The player dutifully played it, which looks like the app is broken.
+
+  A film or episode that reports well under two minutes is that notice, not the title,
+  so the player now stops and says what happened. Live TV is usually served straight
+  from the provider's own origin and keeps working, which is the confusing part — so
+  the message says that too.
+
 ## 1.0.7
 
 - **The home screen no longer spends your subscription on nobody.** The hero teaser

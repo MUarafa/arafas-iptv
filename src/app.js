@@ -3692,6 +3692,21 @@ import {
     }
     function X() {
       if (n || null !== d) return;
+      // When a provider's video host blocks it, the server answers with a short
+      // "this video has been restricted" clip in place of the film or episode. A
+      // title reporting well under two minutes is that clip, not the content, so say
+      // what happened rather than playing someone else's notice.
+      if (!a.__blocked) {
+        var runtime = a.duration;
+        if (runtime > 0 && isFinite(runtime) && runtime < 90) {
+          a.__blocked = true;
+          try {
+            a.stop();
+          } catch (e) {}
+          J(0, translate("player.providerBlocked"));
+          return;
+        }
+      }
       (G(a.position, a.duration),
         (function () {
           if (!A || null !== d) return;

@@ -1,6 +1,6 @@
 {
   "name": "arafas-iptv",
-  "version": "1.0.7",
+  "version": "1.0.8",
   "description": "An IPTV player for LG webOS TVs that recovers from broken streams instead of exiting",
   "license": "GPL-3.0-or-later",
   "private": true,
