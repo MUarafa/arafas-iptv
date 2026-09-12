@@ -3,6 +3,19 @@
 All versions are what actually ran on real LG TVs; every fix below was verified on the
 device, not only in theory.
 
+## 1.0.7
+
+- **The home screen no longer spends your subscription on nobody.** The hero teaser
+  auto-plays a stream in the background while you are just looking at Home. On a
+  subscription that allows a single device, that one slot goes to a TV nobody is
+  watching, and the next device to press play is refused by the provider — usually with
+  its own "this video has been restricted" clip, which looks like a broken app.
+
+  The app now remembers the device limit reported at sign-in and only lets the teaser
+  run when the subscription has room for it. Playlists have no such limit and are
+  unaffected. When the limit is not known yet, the teaser stays quiet and the app finds
+  it out for next time.
+
 ## 1.0.6
 
 - **Say what is actually wrong when the network is intercepted.** An ISP that has

@@ -462,12 +462,40 @@ import {
   function asArray(e) {
     return Array.isArray(e) ? e : [];
   }
+  var CONNECTION_LIMIT_KEY = "iptv:maxConnections";
+  /**
+   * May the app open a stream nobody asked to watch (the home hero teaser)?
+   *
+   * Only when the subscription is known to have room. A single-connection account
+   * spends its one slot on the teaser, and the next device to press play is refused.
+   * Playlists have no such limit, so they are unaffected. When the limit is not known
+   * yet, stay quiet and go and find it out for next time.
+   */
+  function backgroundStreamAllowed() {
+    if (sourceKind() !== "xtream") return true;
+    var limit = NaN;
+    try {
+      limit = Number(localStorage.getItem(CONNECTION_LIMIT_KEY));
+    } catch (e) {}
+    if (isFinite(limit) && limit > 0) return limit > 1;
+    try {
+      var pending = activeAdapter().authenticate();
+      if (pending && pending.catch) pending.catch(function () {});
+    } catch (e) {}
+    return false;
+  }
   function fe() {
     return runAsync(this, null, function* () {
       let e = yield playerApi(null),
         t = e && e.user_info;
       if (!t || "0" === String(t.auth) || !t.status) throw new Error("Login failed");
       if ("active" !== String(t.status).toLowerCase()) throw new Error("Account is " + t.status);
+      // Remember the device limit. The home hero must not open a second stream on a
+      // subscription that allows only one, or the next device to press play gets the
+      // provider's "restricted" notice instead of the channel.
+      try {
+        localStorage.setItem(CONNECTION_LIMIT_KEY, String(Number(t.max_connections) || 1));
+      } catch (e) {}
       return {
         status: t.status,
         expiresAt: t.exp_date ? 1e3 * Number(t.exp_date) : null,
@@ -3006,7 +3034,7 @@ import {
             i && i.setFocused(i.node.contains(e.target));
           }),
           (i = Ii({
-            teaser: settings().heroTeaser,
+            teaser: settings().heroTeaser && backgroundStreamAllowed(),
             teaserSound: settings().heroTeaserSound,
             onPlay: (e) =>
               pushRoute("player", {
