@@ -3858,7 +3858,8 @@ import {
       k = createElement(
         "div",
         {
-          class: "osd-bar",
+          // Focusable (Up from the buttons): Left/Right on the bar seek.
+          class: "osd-bar focusable",
         },
         [w, x],
       ),
@@ -3969,7 +3970,7 @@ import {
       (K.classList.add("visible"), l && clearTimeout(l), (l = setTimeout(W, 4500)));
     }
     function W() {
-      (K.classList.remove("visible"), l && (clearTimeout(l), (l = null)));
+      (K.classList.remove("visible"), (a.__osdNav = !1), l && (clearTimeout(l), (l = null)));
     }
     function J(e, t) {
       ((z.textContent = t || ""), z.classList.toggle("visible", !!t));
@@ -4411,11 +4412,31 @@ import {
             : (ae(), !0);
         if (!se.hidden) return !1;
         let r = K.classList.contains("visible");
-        if ((i === KEY_LEFT || i === KEY_REWIND) && !n) return ($(-1), !0);
-        if ((i === KEY_RIGHT || i === KEY_FORWARD) && !n) return ($(1), !0);
+        // Up, Down or OK means the viewer is using the controls: from then until they hide,
+        // Left/Right move between the buttons (Skip intro, Next episode…), which were
+        // unreachable when every Left/Right was a seek. Otherwise - controls hidden, shown by
+        // themselves as the player opens, or the progress bar focused - Left/Right seek.
+        (i === KEY_UP || i === KEY_DOWN || isSelectKey(i)) && (a.__osdNav = !0);
+        let seekKeys = !r || !a.__osdNav || focusedElement() === k;
+        // Any key while the controls show keeps them up.
+        r && V();
+        if (!n && (i === KEY_REWIND || (i === KEY_LEFT && seekKeys))) return ($(-1), !0);
+        if (!n && (i === KEY_FORWARD || (i === KEY_RIGHT && seekKeys))) return ($(1), !0);
         if (i === KEY_PLAY_PAUSE || i === KEY_PAUSE || i === KEY_PLAY) {
-          let e = a.togglePause();
-          return ((_.textContent = e ? "▶" : "❚❚"), e && ne(), V(), !0);
+          // webOS can act on its media keys by itself; toggling again then undoes it and the
+          // press looks ignored. Decide a moment later from what the video actually did:
+          // Pause only pauses, Play only plays, Play/Pause toggles.
+          let was = a.paused;
+          return (
+            setTimeout(() => {
+              if (p) return;
+              let now = a.paused;
+              if (now === was && !((i === KEY_PAUSE && now) || (i === KEY_PLAY && !now)))
+                now = a.togglePause();
+              ((_.textContent = now ? "▶" : "❚❚"), now && ne(), V());
+            }, 150),
+            !0
+          );
         }
         if (i === KEY_STOP) return (ne(), goBack(), !0);
         if (n && e.siblings && e.siblings.length > 1) {

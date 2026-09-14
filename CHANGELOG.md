@@ -15,6 +15,16 @@ device, not only in theory.
   still get their resume seek instead of silently playing from the beginning.
 - **The menu shows where you are.** The focused item sits on a red-framed card, not just a
   faint tint, and the card frames the icon even while the rail is collapsed.
+- **The player's controls can be reached again.** Every Left/Right in a film was taken as a
+  seek, so Skip intro, Next episode, Fit and Quality could not be reached, and the bar hid
+  after 4.5 s even while you were pressing keys. Left/Right still seek by default - also in
+  the first seconds when the controls show by themselves - but once you press Down, Up or OK
+  to use the controls, Left/Right move between the buttons until the controls hide; Up
+  reaches the progress bar (where Left/Right seek), and any key keeps the controls up.
+- **The remote's Pause and Play buttons work.** webOS can pause the video on its own media
+  key, and the app then toggled it straight back, so the press looked ignored. The app now
+  checks what the video did a moment later: Pause only pauses, Play only plays, Play/Pause
+  toggles.
 - **The open menu no longer covers the screen beside it.** Opening the menu widens it from
   96 to 300 px over the current screen, hiding the start of titles and the first cards;
   the screen now slides aside by the difference while the menu is open and back after (a
