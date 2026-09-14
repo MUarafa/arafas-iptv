@@ -385,11 +385,44 @@ html, body {
 }
 
 .rail-icon {
+  position: relative;
+  z-index: 1;
   display: inline-block;
   width: 44px;
-  font-size: 26px;
   text-align: center;
   vertical-align: middle;
+}
+
+.rail-icon svg {
+  display: inline-block;
+  vertical-align: middle;
+  opacity: 0.72;
+  transition: opacity var(--speed) var(--ease), transform var(--speed) var(--ease);
+}
+
+.rail-item.current .rail-icon svg { opacity: 1; }
+.rail-item.focused .rail-icon svg { opacity: 1; transform: scale(1.14); }
+
+/* The focused item sits on a card, so where you are reads from across the room, not
+   only as a faint tint. The card is inset so it frames the icon alone when the rail is
+   collapsed, and grows with the rail when it expands. */
+.rail-item::after {
+  content: "";
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  top: 3px;
+  bottom: 3px;
+  border: 2px solid transparent;
+  border-radius: 14px;
+  transition: background var(--speed) var(--ease), border-color var(--speed) var(--ease),
+    box-shadow var(--speed) var(--ease);
+}
+
+.rail-item.focused::after {
+  border-color: var(--accent);
+  background: linear-gradient(to right, rgba(229, 9, 20, 0.34), rgba(229, 9, 20, 0.12));
+  box-shadow: 0 0 0 1px rgba(255, 77, 77, 0.22), 0 6px 22px rgba(229, 9, 20, 0.45);
 }
 
 .rail-label {
@@ -418,10 +451,7 @@ html, body {
   background: var(--accent);
 }
 
-.rail-item.focused {
-  color: var(--text);
-  background: rgba(255, 255, 255, 0.12);
-}
+.rail-item.focused { color: var(--text); }
 
 /* ================================== Content ================================== */
 
@@ -432,6 +462,14 @@ html, body {
   right: 0;
   bottom: 0;
   overflow: hidden;
+  transition: transform var(--speed) var(--ease);
+}
+
+/* The open menu is wider than the closed one. Instead of covering the start of the
+   screen beside it (titles, the first card), that screen slides aside by the difference
+   and back when the menu closes. A transform, so the TV does not re-lay out the page. */
+.rail.expanded + .content {
+  transform: translate3d(calc(var(--rail-expanded) - var(--rail-collapsed)), 0, 0);
 }
 
 /*

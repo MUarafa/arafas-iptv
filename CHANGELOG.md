@@ -3,6 +3,96 @@
 All versions are what actually ran on real LG TVs; every fix below was verified on the
 device, not only in theory.
 
+## 1.0.9
+
+- **Continue Watching no longer loses a title when resuming fails.** Leaving the player
+  (or its 10-second autosave) recorded the playhead even when nothing had played yet.
+  That position is 0, and anything under a minute counts as "not really watched", so a
+  resume that failed to start deleted the very entry it was resuming. Progress is now
+  saved only once playback has actually started and the resume seek has landed; a short
+  position never overwrites a longer one; and the automatic retry resumes from the saved
+  place instead of from zero. Files that report their length only after starting now
+  still get their resume seek instead of silently playing from the beginning.
+- **The menu shows where you are.** The focused item sits on a red-framed card, not just a
+  faint tint, and the card frames the icon even while the rail is collapsed.
+- **The open menu no longer covers the screen beside it.** Opening the menu widens it from
+  96 to 300 px over the current screen, hiding the start of titles and the first cards;
+  the screen now slides aside by the difference while the menu is open and back after (a
+  transform, so the TV does not re-lay out the page).
+- **Menu icons drawn for the app.** The icons were font symbols and emoji, and the TV's
+  fonts had no glyph for several of them, so they showed as empty boxes. They are now
+  SVG, in the logo's red gradient with a white detail, the logo's own play triangle where
+  it fits.
+- **Steadier d-pad movement.** Up and Down inside the menu were already exact; the
+  "missed" and "double" presses came from everything around it, found by 40 navigation
+  scenarios in the simulator:
+  - Left from a screen opens the menu on that screen's own item. It used to land on
+    whichever item sat level with the focused button - usually Free TV, the last one, so
+    the next Down did nothing - and was ignored while the menu was still animating shut.
+  - Up from the spotlight no longer jumps sideways into the menu.
+  - A key the remote echoes within 50 ms acts once, for arrows, OK and Back alike - an
+    echoed Right from the menu no longer steps twice, an echoed OK no longer opens the
+    player straight past the details page.
+  - Home rows load before focus reaches them, so Down onto a row still loading is no
+    longer swallowed.
+  - Focus is kept when Settings toggles, the search keyboard's language buttons or a
+    channel list refresh rebuild the rows under it; when focus is lost anyway, the next
+    press moves from where it was instead of jumping to the top of the menu.
+  - Back lands on the current screen's menu item.
+- **Magic Remote pointer.** Focus follows the pointer and a click acts as OK. Content
+  sliding under a resting pointer, or a hand jittering a few pixels just after a key press,
+  does not move focus.
+- **Spotlight previews are back on single-connection subscriptions.** 1.0.7 turned the
+  home teaser off for any account that allows one connection, which left the spotlight
+  flipping through still artwork every 5 s. Teasers run again - 30 s of each title - and
+  the connection risk that motivated 1.0.7 is handled directly instead: the player waits
+  for a released teaser stream to close (2.5 s) before opening the title, a teaser never
+  starts on a slot the player has only just handed back, two failed previews in a row
+  fall back to artwork instead of opening stream after stream, and a TV left untouched
+  for 10 minutes stops opening teasers until someone presses a key. Without a teaser the
+  artwork now rotates every 8 s.
+- **Resuming on a single-connection subscription no longer loses the title.** Found in
+  the simulator with a provider that keeps a closed stream counted for a moment - which
+  is how the original "didn't play, then vanished from Continue Watching" happened. A
+  retry reopened too soon, got the provider's 12-second "restricted" clip, sought the saved
+  place into its end, took that for the film finishing, deleted the entry and jumped to the
+  details page. Now films and episodes wait for a stream the app just closed to be released
+  before opening (retries, next episode, Back then Play), a seconds-long "title" is never
+  taken for an ending or saved as progress, a resume place beyond the file's length or a
+  file that ignores the seek keeps the saved place, the retry budget refills only after real
+  playback (a dead line stops retrying and says so), and a frozen stall now reaches the
+  reload step instead of nudging forever. Live channels still switch instantly: they wait
+  only after a teaser has just stopped, or once the app has seen this provider serve its
+  notice clip on a channel switch (remembered on the TV), and a live stream the provider
+  ended itself always reconnects at once. Switching to another copy of the same channel
+  or title (a failover, a stall, a quality promotion) always waits for the stream it cut
+  off, a channel fails over between its best 6 copies rather than every duplicate in every
+  category, and only sustained playback - not the jump back to the resume point after a
+  reload - resets the stall-recovery steps, so a stream that stays frozen ends in a message.
+- Play/Pause while a title is still waiting for its connection no longer throws.
+- A film or episode that cannot be played says so in those words, not "This channel is not
+  available".
+- **Episodes opened from Home's Continue Watching row keep their series**, so their progress
+  still groups by series and finishing one no longer opens a "series" page named after the
+  episode. A damaged entry in the list no longer blanks Home.
+- **Sign-in says what went wrong** ("the server did not answer", "that address is not an IPTV
+  portal", "this account is not active") instead of internal text, and a failed sign-in no
+  longer leaves the TV signed in to the bad account after a restart.
+- **A bad answer from the provider is never cached as an empty catalogue.** A `null`, an error
+  object or a damaged cache entry used to leave Live TV or Movies empty for a day, or a
+  film's details blank for a week. Empty lists are kept five minutes only.
+- **Screens recover by themselves when the line comes back:** Home rows and the spotlight,
+  Live TV categories (and OK on a failed category), search, the channel-quality index, Free
+  TV and M3U playlists all retry instead of staying failed for the session. Playlist
+  downloads time out instead of leaving sign-in on "Connecting…" forever, and a captive
+  portal page that starts with whitespace or `<head>` is recognised as one.
+- **A simulator for the whole app** (`npm run sim`, `tools/sim/`): a stand-in Xtream
+  provider with injectable faults, a scriptable video element (streams that never start,
+  get cut, stall, cannot seek, report no duration, or hit the connection limit) and a
+  virtual clock, driving the real bundle in headless Chrome. Scenarios run in seconds and
+  never touch a TV.
+- The bundled fonts are now in the repository (they were only on the TVs).
+
 ## 1.0.8
 
 - **Say when the provider's video host has blocked a title.** When a provider streams

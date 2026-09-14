@@ -6,6 +6,8 @@ export function s(e, t) {
 
 export var o = ".focusable:not(.disabled):not([hidden])",
   focusedEl = null,
+  // Where focus last was on screen, for when the focused node is re-rendered away.
+  lastRect = null,
   c = Object.create(null),
   d = !0;
 
@@ -64,6 +66,7 @@ export function focusElement(e, t) {
         (focusedEl.classList.remove("focused"), focusedEl.removeAttribute("data-focused")),
       (focusedEl = n).classList.add("focused"),
       focusedEl.setAttribute("data-focused", ""),
+      (lastRect = focusedEl.getBoundingClientRect()),
       (function (e) {
         let t = e.closest("[data-focus-memory]");
         t && (c[t.getAttribute("data-focus-memory")] = e);
@@ -86,20 +89,31 @@ export function focusElement(e, t) {
 
 export function moveFocus(e) {
   let t = (function (e, t) {
-    let n = t || focusedEl;
-    if (!n) return f()[0] || null;
-    let i = n.getBoundingClientRect(),
-      r = (function (e, t) {
-        let n = "up" === t || "down" === t ? "vertical" : "horizontal",
-          i = e.closest("[data-focus-contain]");
-        return i && i.getAttribute("data-focus-contain") === n ? i : null;
-      })(n, e),
+    let n = t || focusedEl,
+      attached = !!n && document.contains(n) && h(n);
+    // A focused node that was re-rendered away or hidden has no position of its own: move
+    // from where it last was, so the press lands next to it rather than on the first item
+    // of the screen (which reads as "the menu jumped").
+    if (!attached) {
+      if (!lastRect) return f()[0] || null;
+      n = null;
+    }
+    let axis = "up" === e || "down" === e ? "vertical" : "horizontal",
+      i = n ? n.getBoundingClientRect() : lastRect,
+      r = (function () {
+        let c = n && n.closest("[data-focus-contain]");
+        return c && c.getAttribute("data-focus-contain") === axis ? c : null;
+      })(),
       a = null,
       l = 1 / 0;
     for (let t of r ? s(o, r).filter(h) : f()) {
       if (t === n) continue;
-      let r = g(i, t.getBoundingClientRect(), e);
-      null === r || r >= l || ((l = r), (a = t));
+      // A container that keeps moves along one axis inside it (the rail) is not entered
+      // along that axis from outside either: Up from the spotlight must not land in the menu.
+      let c = t.closest("[data-focus-contain]");
+      if (c && c !== r && c.getAttribute("data-focus-contain") === axis) continue;
+      let d = g(i, t.getBoundingClientRect(), e);
+      null === d || d >= l || ((l = d), (a = t));
     }
     return a;
   })(e);

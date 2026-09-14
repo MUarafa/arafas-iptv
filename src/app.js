@@ -298,6 +298,10 @@ import {
   function now() {
     return Date.now();
   }
+  /** An empty list may be a provider hiccup, not an empty catalogue: keep it briefly. */
+  function cacheTtl(value, ttl) {
+    return Array.isArray(value) && !value.length ? Math.min(ttl || FIVE_MINUTES_MS, FIVE_MINUTES_MS) : ttl;
+  }
   function se(e, t, n) {
     let i,
       r = {
@@ -394,7 +398,9 @@ import {
       }
       return (cacheMemory.set(e, n), n.value);
     })(e);
-    if (null != r) return Promise.resolve(r);
+    // A cached value of the wrong shape (an older format, a hand-edited or damaged entry)
+    // is as good as missing: fetch it again rather than showing an empty screen for a day.
+    if (null != r && (!i || !i.valid || i.valid(r))) return Promise.resolve(r);
     if (pendingCacheReads.has(e)) return pendingCacheReads.get(e);
     let s = n()
       .then(
@@ -405,8 +411,8 @@ import {
                   value: t,
                   expires: now() + (n || SIX_HOURS_MS),
                 });
-              })(e, n, t)
-            : se(e, n, t),
+              })(e, n, cacheTtl(n, t))
+            : se(e, n, cacheTtl(n, t)),
           pendingCacheReads.delete(e),
           n
         ),
@@ -451,7 +457,7 @@ import {
           return JSON.parse(s);
         } catch (t) {
           throw new Error(
-            /^s*<(!doctype|html)/i.test(s) ? "__NOAPI__" : "Bad JSON from " + (e || "auth"),
+            /^\s*<(!doctype|html|head|body|script|meta|\?xml)/i.test(s) ? "__NOAPI__" : "Bad JSON from " + (e || "auth"),
           );
         }
       } finally {
@@ -462,27 +468,108 @@ import {
   function asArray(e) {
     return Array.isArray(e) ? e : [];
   }
-  var CONNECTION_LIMIT_KEY = "iptv:maxConnections";
+  /**
+   * A list the portal must answer with. null, an error object ({user_info:{auth:0}} when
+   * the account lapses) or anything else is a failure, not an empty catalogue: it is
+   * thrown, so it is never cached as "nothing here" for a day. Some panels send a list as
+   * an object keyed by index; that is still a list.
+   */
+  function expectList(e, action) {
+    if (Array.isArray(e)) return e;
+    if (e && "object" == typeof e && !e.user_info) {
+      let keys = Object.keys(e);
+      if (keys.every((k) => /^\d+$/.test(k))) return keys.map((k) => e[k]);
+    }
+    return badResponse(action);
+  }
+  /** Like expectList, but a missing or unusable value is simply an empty list. */
+  function expectListOrEmpty(e) {
+    try {
+      return expectList(e, "");
+    } catch (err) {
+      return [];
+    }
+  }
+  /** fetch that gives up. A host that never answers must not leave a screen "Connecting…"
+   *  forever. (No .finally: webOS 4's Chromium 53 does not have it.) */
+  function fetchWithTimeout(url, ms) {
+    let c = new AbortController(),
+      timer = setTimeout(() => c.abort(), ms || 3e4);
+    return fetch(url, {
+      signal: c.signal,
+    }).then(
+      (r) => (clearTimeout(timer), r),
+      (e) => {
+        throw (clearTimeout(timer), e);
+      },
+    );
+  }
+  function badResponse(action) {
+    throw new Error("Bad response from " + action);
+  }
+  /** What a failed sign-in means, in words the viewer can act on. */
+  function signInErrorText(err) {
+    let m = String((err && err.message) || err || "");
+    return "Login failed" === m
+      ? translate("welcome.wrongLogin")
+      : /^Account is/.test(m)
+        ? translate("welcome.inactive")
+        : m.indexOf("__NOAPI__") >= 0
+          ? translate("welcome.notPortal")
+          : /^(That URL is not an M3U playlist|That playlist has no channels|Playlist download failed)/.test(m)
+            ? m
+          : (err && "AbortError" === err.name) || /abort|failed to fetch|network/i.test(m)
+            ? translate("welcome.noAnswer")
+            : translate("welcome.serverError");
+  }
+  var CONNECTION_LIMIT_KEY = "iptv:maxConnections",
+    // How long a released teaser or preview stream may still count against the
+    // subscription's connection limit at the provider.
+    BACKGROUND_RELEASE_GRACE_MS = 2500,
+    // A TV left untouched stops opening teaser streams after this long, so an
+    // unattended screen does not sit on a single-connection subscription.
+    BACKGROUND_IDLE_MS = 10 * 60e3,
+    lastStreamReleaseAt = 0,
+    lastBackgroundReleaseAt = 0,
+    PROVIDER_LINGERS_KEY = "iptv:providerLingers",
+    lastInputAt = Date.now();
   /**
    * May the app open a stream nobody asked to watch (the home hero teaser)?
    *
-   * Only when the subscription is known to have room. A single-connection account
-   * spends its one slot on the teaser, and the next device to press play is refused.
-   * Playlists have no such limit, so they are unaffected. When the limit is not known
-   * yet, stay quiet and go and find it out for next time.
+   * Yes while someone is at the remote. On a single-connection subscription the teaser
+   * does take the one slot, so the player waits for it to be handed back before opening
+   * the real stream (see the player's start), and teasers stop once the TV is left alone.
    */
   function backgroundStreamAllowed() {
-    if (sourceKind() !== "xtream") return true;
-    var limit = NaN;
+    return Date.now() - lastInputAt < BACKGROUND_IDLE_MS;
+  }
+  /** A stream the app cut off (a teaser, the previous title, an abandoned attempt). Until
+   *  the provider has let go of it, a single-connection account has no free slot. */
+  function noteBackgroundRelease() {
+    lastBackgroundReleaseAt = lastStreamReleaseAt = Date.now();
+  }
+  function noteStreamRelease() {
+    lastStreamReleaseAt = Date.now();
+  }
+  /**
+   * How long to wait before opening a stream on a single-connection account. Films and
+   * episodes always wait out a stream closed a moment ago. Live channels switch at once -
+   * unless this provider has shown that it keeps closed streams counted (learned the first
+   * time a channel got its notice clip) - but a teaser just stopped is always waited out.
+   */
+  function streamOpenDelay(live) {
+    if (!Kt().singleConnection) return 0;
+    let lingers = !1;
     try {
-      limit = Number(localStorage.getItem(CONNECTION_LIMIT_KEY));
+      lingers = "1" === localStorage.getItem(PROVIDER_LINGERS_KEY);
     } catch (e) {}
-    if (isFinite(limit) && limit > 0) return limit > 1;
+    let since = live && !lingers ? lastBackgroundReleaseAt : lastStreamReleaseAt;
+    return Math.max(0, since + BACKGROUND_RELEASE_GRACE_MS - Date.now());
+  }
+  function learnProviderLingers() {
     try {
-      var pending = activeAdapter().authenticate();
-      if (pending && pending.catch) pending.catch(function () {});
+      localStorage.setItem(PROVIDER_LINGERS_KEY, "1");
     } catch (e) {}
-    return false;
   }
   function fe() {
     return runAsync(this, null, function* () {
@@ -507,14 +594,20 @@ import {
     });
   }
   function pe(e, t) {
-    return cached("cats:" + e, DAY_MS, () =>
-      runAsync(null, null, function* () {
-        return asArray(yield playerApi(t)).map((t) => ({
-          id: String(t.category_id),
-          name: String(t.category_name || "").trim(),
-          kind: e,
-        }));
-      }),
+    return cached(
+      "cats:" + e,
+      DAY_MS,
+      () =>
+        runAsync(null, null, function* () {
+          return expectList(yield playerApi(t), t).map((t) => ({
+            id: String(t.category_id),
+            name: String(t.category_name || "").trim() || "Category " + t.category_id,
+            kind: e,
+          }));
+        }),
+      {
+        valid: Array.isArray,
+      },
     );
   }
   function ge() {
@@ -568,14 +661,16 @@ import {
       SIX_HOURS_MS,
       () =>
         runAsync(null, null, function* () {
-          return asArray(
+          return expectList(
             yield playerApi("get_live_streams", {
               category_id: e,
             }),
+            "get_live_streams",
           ).map(be);
         }),
       {
         memoryOnly: !0,
+        valid: Array.isArray,
       },
     );
   }
@@ -585,14 +680,16 @@ import {
       SIX_HOURS_MS,
       () =>
         runAsync(null, null, function* () {
-          return asArray(
+          return expectList(
             yield playerApi("get_vod_streams", {
               category_id: e,
             }),
+            "get_vod_streams",
           ).map(we);
         }),
       {
         memoryOnly: !0,
+        valid: Array.isArray,
       },
     );
   }
@@ -602,14 +699,16 @@ import {
       SIX_HOURS_MS,
       () =>
         runAsync(null, null, function* () {
-          return asArray(
+          return expectList(
             yield playerApi("get_series", {
               category_id: e,
             }),
+            "get_series",
           ).map(xe);
         }),
       {
         memoryOnly: !0,
+        valid: Array.isArray,
       },
     );
   }
@@ -619,7 +718,7 @@ import {
         let t = yield playerApi("get_vod_info", {
             vod_id: e,
           }),
-          n = (t && t.info) || {},
+          n = t && (t.info || t.movie_data) ? t.info || {} : badResponse("get_vod_info"),
           i = (t && t.movie_data) || {};
         return {
           name: n.name || i.name || "",
@@ -648,13 +747,13 @@ import {
           let t = yield playerApi("get_series_info", {
               series_id: e,
             }),
-            n = (t && t.info) || {},
+            n = t && (t.info || t.episodes) ? t.info || {} : badResponse("get_series_info"),
             i = (t && t.episodes) || {},
             r = Object.keys(i)
               .sort((e, t) => Number(e) - Number(t))
               .map((e) => ({
                 number: Number(e),
-                episodes: asArray(i[e]).map((t) => ({
+                episodes: expectListOrEmpty(i[e]).map((t) => ({
                   id: String(t.id),
                   title: String(t.title || "").trim(),
                   episodeNumber: Number(t.episode_num) || 0,
@@ -877,12 +976,15 @@ import {
       : Me ||
           (Me = runAsync(null, null, function* () {
             let e = requireCredentials(),
-              t = yield fetch(e.url);
+              t = yield fetchWithTimeout(e.url, 3e4);
             if (!t.ok) throw new Error("Playlist download failed (HTTP " + t.status + ")");
             let n = yield t.text();
             if (-1 === n.indexOf("#EXTM3U") && -1 === n.indexOf("#EXTINF"))
               throw new Error("That URL is not an M3U playlist");
             return ((Pe = Ue(n)), (Me = null), Pe);
+          }).catch((e) => {
+            // A failed download must not be handed out again for the rest of the session.
+            throw ((Me = null), e);
           }));
   }
   function Ke() {
@@ -1184,7 +1286,7 @@ import {
   }
   function Ct(e) {
     return runAsync(this, null, function* () {
-      let t = yield fetch("https://iptv-org.github.io/api/" + e + ".json");
+      let t = yield fetchWithTimeout("https://iptv-org.github.io/api/" + e + ".json", 3e4);
       if (!t.ok) throw new Error("free playlist: " + e + " HTTP " + t.status);
       return t.json();
     });
@@ -1318,6 +1420,8 @@ import {
                 dropped: u,
               })
             );
+          }).catch((e) => {
+            throw ((freePlaylistPromise = null), e);
           }));
   }
   function _t() {
@@ -1482,53 +1586,98 @@ import {
       t
     );
   }
+  // Menu icons in the logo's language: the red gradient carries the shape, a white
+  // detail (often the logo's own play triangle) carries the meaning. Drawn here rather
+  // than taken from a font, because the TV's fonts lack most symbol glyphs and showed
+  // empty boxes. Each icon owns its gradient id, so none depends on another's defs.
+  var RAIL_STROKE =
+      ' fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" stroke=',
+    RAIL_WHITE = ' fill="#ffffff"',
+    RAIL_WHITE_LINE = ' fill="none" stroke="#ffffff" stroke-linecap="round" stroke-width=',
+    RAIL_ICON_BODIES = {
+      continue:
+        '<path d="M20 12a8 8 0 1 1-2.34-5.66"%R/><path d="M20 3.8v4.7h-4.7"%R/>' +
+        '<path d="M10 8.6v6.8l5.4-3.4z"' + RAIL_WHITE + "/>",
+      favorites:
+        '<path d="M12 3.2l2.7 5.5 6 .9-4.35 4.25 1.03 6L12 17.02l-5.38 2.83 1.03-6L3.3 9.6l6-.9z"%R/>' +
+        '<circle cx="12" cy="12.3" r="1.9"' + RAIL_WHITE + "/>",
+      search:
+        '<circle cx="10.5" cy="10.5" r="6.5"%R/>' +
+        '<path d="M15.6 15.6L20.8 20.8"' + RAIL_WHITE_LINE + '"2.6"/>',
+      home:
+        '<path d="M3.5 11L12 3.5l8.5 7.5v9a1 1 0 0 1-1 1h-15a1 1 0 0 1-1-1z"%R/>' +
+        '<path d="M10.2 12.4v5.6l4.6-2.8z"' + RAIL_WHITE + "/>",
+      live:
+        '<rect x="2.5" y="7" width="19" height="13" rx="2.2"%R/><path d="M8 2.8l4 4 4-4"%R/>' +
+        '<circle cx="12" cy="13.5" r="2.5"' + RAIL_WHITE + "/>",
+      movies:
+        '<rect x="3" y="10" width="18" height="10.5" rx="1.6"%R/>' +
+        '<path d="M3 10L20.3 6.7 19.6 3.2 2.4 6.5z"%R/>' +
+        '<path d="M7.4 5.6l2.2 3.2M12.8 4.6l2.2 3.2"' + RAIL_WHITE_LINE + '"1.7"/>' +
+        '<path d="M10.4 12.6v5.3l4.3-2.65z"' + RAIL_WHITE + "/>",
+      series:
+        '<rect x="2.5" y="8" width="15.5" height="12" rx="2"%R/>' +
+        '<path d="M6.5 4.5h13a2 2 0 0 1 2 2v9.5"%R/>' +
+        '<path d="M8.4 11v6l4.9-3z"' + RAIL_WHITE + "/>",
+      settings:
+        '<circle cx="12" cy="12" r="6"%R/>' +
+        '<path d="M12 1.8v3M12 19.2v3M1.8 12h3M19.2 12h3M4.8 4.8l2.1 2.1M17.1 17.1l2.1 2.1M4.8 19.2l2.1-2.1M17.1 6.9l2.1-2.1"%R/>' +
+        '<circle cx="12" cy="12" r="2.4"' + RAIL_WHITE + "/>",
+      freetv:
+        '<circle cx="12" cy="12" r="9"%R/>' +
+        '<path d="M3.4 12h17.2M12 3c2.5 2.6 3.7 5.6 3.7 9s-1.2 6.4-3.7 9c-2.5-2.6-3.7-5.6-3.7-9S9.5 5.6 12 3z"' +
+        RAIL_WHITE_LINE + '"1.6"/>',
+    };
+  function railIconSvg(id) {
+    let grad = "rail-grad-" + id;
+    return (
+      '<svg viewBox="0 0 24 24" width="32" height="32" aria-hidden="true">' +
+      '<defs><linearGradient id="' + grad +
+      '" gradientUnits="userSpaceOnUse" x1="0" y1="2" x2="0" y2="22">' +
+      '<stop offset="0" stop-color="#ff4d4d"/><stop offset="1" stop-color="#c40810"/>' +
+      "</linearGradient></defs>" +
+      RAIL_ICON_BODIES[id].split("%R").join(RAIL_STROKE + '"url(#' + grad + ')"') +
+      "</svg>"
+    );
+  }
   var NAV_ITEMS = [
     {
       id: "continue",
-      icon: "▶",
       key: "nav.continue",
     },
     {
       id: "favorites",
-      icon: "★",
       key: "nav.favorites",
     },
     {
       id: "search",
-      icon: "⌕",
       key: "nav.search",
     },
     {
       id: "home",
-      icon: "⌂",
       key: "nav.home",
     },
     {
       id: "live",
-      icon: "▤",
       key: "nav.live",
       needs: "live",
     },
     {
       id: "movies",
-      icon: "🎬",
       key: "nav.movies",
       needs: "vod",
     },
     {
       id: "series",
-      icon: "📺",
       key: "nav.series",
       needs: "series",
     },
     {
       id: "settings",
-      icon: "⚙",
       key: "nav.settings",
     },
     {
       id: "freetv",
-      icon: "🌐",
       key: "nav.freetv",
       personalOnly: !0,
     },
@@ -1562,7 +1711,7 @@ import {
         [
           createElement("span", {
             class: "rail-icon",
-            text: t.icon,
+            html: railIconSvg(t.id),
           }),
           createElement("span", {
             class: "rail-label",
@@ -1589,10 +1738,17 @@ import {
           var r = e.querySelector(".rail-item.focused");
           if (!r) return;
           (t.stopPropagation(), t.preventDefault());
+          // This handler stops the event before the global one, so it applies the same
+          // echo guard itself: an echoed Right must not step again inside the content.
+          var at = Date.now();
+          if (39 === lastDirKey && at - lastDirAt < 50) return;
+          ((lastDirKey = 39), (lastDirAt = at), (lastInputAt = at));
           var o = r.getAttribute("data-route");
           o !== currentRoute() && navigateRoot(o, {});
           var k = 0;
           !(function f() {
+            // The viewer moved on while the section was loading: do not pull focus away.
+            if (focusedElement() !== r) return;
             var a = document.querySelectorAll(".focusable");
             for (var q = 0; q < a.length; q++)
               if (!e.contains(a[q]) && null !== a[q].offsetParent)
@@ -1776,7 +1932,11 @@ import {
           text: Vn[t].label,
         });
         ((e.__press = () => {
-          ((a = t), k(), C());
+          // The language buttons are rebuilt: keep focus on the one just chosen.
+          ((a = t),
+            k(),
+            C(),
+            focusElement(c.querySelector(".kb-lang.active") || c.firstChild, { exact: !0 }));
         }),
           c.appendChild(e));
       }
@@ -1786,7 +1946,12 @@ import {
           text: "More…",
         });
         ((e.__press = () => {
-          ((l = !0), k());
+          // Land on the first of the languages that just appeared, where "More…" was.
+          ((l = !0),
+            k(),
+            focusElement(c.children[Object.keys(KEYBOARD_LAYOUTS).length] || c.firstChild, {
+              exact: !0,
+            }));
         }),
           c.appendChild(e));
       }
@@ -2119,36 +2284,34 @@ import {
     function T(e, i, r) {
       return runAsync(this, null, function* () {
         if (!t) {
-          ((t = !0),
-            (a.textContent = ""),
-            (h.textContent = r || translate("welcome.connecting")),
-            (function (e) {
-              sourceKindCache = e;
-              try {
-                localStorage.setItem(SOURCE_KIND_KEY, e);
-              } catch (e) {}
-            })(e),
+          ((t = !0), (a.textContent = ""), (h.textContent = r || translate("welcome.connecting")));
+          // Try the account in memory first. It is written to storage only once the portal
+          // has accepted it, so a failed sign-in never leaves the TV signed in to nothing.
+          let prevKind = sourceKindCache,
+            prevCredentials = credentialsCache;
+          ((sourceKindCache = e),
             i &&
-              (function (e) {
-                credentialsCache = {
-                  url: String(e.url || "")
-                    .trim()
-                    .replace(/\/+$/, ""),
-                  username: String(e.username || "").trim(),
-                  password: String(e.password || "").trim(),
-                };
-                try {
-                  localStorage.setItem(CREDENTIALS_KEY, JSON.stringify(credentialsCache));
-                } catch (e) {}
-              })(i),
+              (credentialsCache = {
+                url: String(i.url || "")
+                  .trim()
+                  .replace(/\/+$/, ""),
+                username: String(i.username || "").trim(),
+                password: String(i.password || "").trim(),
+              }),
             et && et());
           try {
-            (yield activeAdapter().authenticate(), navigateRoot("home", {}));
+            yield activeAdapter().authenticate();
+            try {
+              (localStorage.setItem(SOURCE_KIND_KEY, e),
+                i && localStorage.setItem(CREDENTIALS_KEY, JSON.stringify(credentialsCache)));
+            } catch (e) {}
+            navigateRoot("home", {});
           } catch (e) {
-            ((t = !1),
+            ((sourceKindCache = prevKind),
+              (credentialsCache = prevCredentials),
+              (t = !1),
               (h.textContent = translate("welcome.signIn")),
-              (a.textContent =
-                "Login failed" === e.message ? translate("welcome.wrongLogin") : e.message));
+              (a.textContent = signInErrorText(e)));
           }
         }
       });
@@ -2334,13 +2497,20 @@ import {
     if ("live" === e.kind) return;
     let i = channelHealth(),
       r = di(e.kind, e.id);
-    if (t < 60 || (n > 0 && t / n >= 0.93)) return (delete i[r], void ci());
+    if (n > 0 && t / n >= 0.93) return (delete i[r], void ci());
+    // A short position only clears the entry when there is nothing further along to
+    // lose. A resume that failed to start reports 0, and dropping the title from
+    // Continue Watching then is exactly the wrong answer.
+    if (t < 60) {
+      if (i[r] && i[r].position >= 60) return;
+      return (delete i[r], void ci());
+    }
     ((function (e, t) {
       if (!e) return;
       let n = channelHealth();
       for (let i of Object.keys(n)) {
         let r = n[i];
-        r.seriesId === e && r.id !== t && delete n[i];
+        (!r || (r.seriesId === e && r.id !== t)) && delete n[i];
       }
     })(e.seriesId, e.id),
       (i[r] = {
@@ -2359,7 +2529,7 @@ import {
       }));
     let s = Object.keys(i);
     if (s.length > 100) {
-      s.sort((e, t) => i[e].updatedAt - i[t].updatedAt);
+      s.sort((e, t) => ((i[e] && i[e].updatedAt) || 0) - ((i[t] && i[t].updatedAt) || 0));
       for (let e of s.slice(0, s.length - 100)) delete i[e];
     }
     ci();
@@ -2371,7 +2541,8 @@ import {
     let t = channelHealth(),
       n = Object.keys(t)
         .map((e) => t[e])
-        .sort((e, t) => t.updatedAt - e.updatedAt),
+        .filter((e) => e && e.kind && e.id)
+        .sort((e, t) => (Number(t.updatedAt) || 0) - (Number(e.updatedAt) || 0)),
       i = Object.create(null),
       r = [];
     for (let t of n) {
@@ -2730,7 +2901,10 @@ import {
       k = null,
       C = null,
       S = !1,
-      _ = !1;
+      _ = !1,
+      // Teasers that failed in a row. Two means the provider will not preview right now:
+      // show artwork instead of opening stream after stream.
+      teaserFailures = 0;
     function T() {
       h.innerHTML = "";
       for (let e = 0; e < b.length; e++)
@@ -2759,11 +2933,13 @@ import {
       (k && (clearTimeout(k), (k = null)),
         C && (clearTimeout(C), (C = null)),
         y.classList.remove("hero-playing"));
+      v.getAttribute("src") && noteBackgroundRelease();
       try {
         (v.pause(), v.removeAttribute("src"), v.load());
       } catch (e) {}
     }
     function N() {
+      teaserFailures = 0;
       if (
         (C && (clearTimeout(C), (C = null)), !v.__seeked && isFinite(v.duration) && v.duration > 0)
       ) {
@@ -2776,12 +2952,32 @@ import {
           k && clearTimeout(k),
           (k = setTimeout(() => {
             E();
-          }, 2e4)));
+          }, 3e4)));
+    }
+    // Rotate the artwork while no teaser plays. Once someone is back at the remote and
+    // the spotlight still has focus, hand over to the teaser again.
+    function R() {
+      x ||
+        b.length < 2 ||
+        (x = setInterval(() => {
+          if (S) return;
+          if (s && _ && teaserFailures < 2 && backgroundStreamAllowed())
+            return (clearInterval(x), (x = null), void A());
+          L((w + 1) % b.length);
+        }, 8e3));
     }
     function A() {
       let e = b[w];
       if (!(e && e.streamUrl && s && _)) return;
-      (I(), (v.__seeked = !1), (v.src = e.streamUrl));
+      if (!backgroundStreamAllowed()) return void (I(), R());
+      // Already opening this very title (loading reports "ready" twice): let it run.
+      if (v.getAttribute("src") === e.streamUrl && !v.paused) return;
+      I();
+      let wait = Kt().singleConnection
+        ? lastStreamReleaseAt + BACKGROUND_RELEASE_GRACE_MS - Date.now()
+        : 0;
+      if (wait > 0) return void (C = setTimeout(A, wait));
+      ((v.__seeked = !1), (v.src = e.streamUrl));
       let t = v.play();
       (t && t.catch && t.catch(() => {}),
         (C = setTimeout(() => {
@@ -2794,10 +2990,7 @@ import {
     function O() {
       if (!(b.length < 2)) {
         if (s && _) return void A();
-        x ||
-          (x = setInterval(() => {
-            S || L((w + 1) % b.length);
-          }, 5e3));
+        R();
       }
     }
     function P(e) {
@@ -2892,7 +3085,8 @@ import {
       }),
       v.addEventListener("playing", N),
       v.addEventListener("error", () => {
-        E();
+        if (!v.getAttribute("src")) return;
+        ++teaserFailures < 2 ? E() : (I(), R());
       }),
       {
         node: y,
@@ -2908,13 +3102,8 @@ import {
             ((_ = e),
             s &&
               (_
-                ? (x && (clearInterval(x), (x = null)), A())
-                : (I(),
-                  !x &&
-                    b.length > 1 &&
-                    (x = setInterval(() => {
-                      S || L((w + 1) % b.length);
-                    }, 5e3)))));
+                ? ((teaserFailures = 0), x && (clearInterval(x), (x = null)), A())
+                : (I(), R())));
         },
         stop() {
           ((S = !0), x && (clearInterval(x), (x = null)), I(), v.removeEventListener("playing", N));
@@ -3020,7 +3209,10 @@ import {
               }
             },
             {
-              root: null,
+              // The rows live inside .content, which clips them; with the viewport as root
+              // the margin never applied and a row only loaded once it was on screen - so
+              // Down onto it did nothing. Rooted at .content, rows load ahead of focus.
+              root: document.querySelector(".content"),
               rootMargin: "1200px 0px",
               threshold: 0.01,
             },
@@ -3034,7 +3226,7 @@ import {
             i && i.setFocused(i.node.contains(e.target));
           }),
           (i = Ii({
-            teaser: settings().heroTeaser && backgroundStreamAllowed(),
+            teaser: settings().heroTeaser,
             teaserSound: settings().heroTeaserSound,
             onPlay: (e) =>
               pushRoute("player", {
@@ -3054,9 +3246,18 @@ import {
               }),
           })),
           e.add(i.node),
-          i.load().catch(() => {
-            i.node.classList.add("hero-artless");
-          }),
+          (function loadHero() {
+            i &&
+              i
+                .load()
+                .then((ok) => ok && i && i.node.classList.remove("hero-artless"))
+                .catch(() => {
+                  // The line may be down at boot: try again rather than stay blank.
+                  i &&
+                    (i.node.classList.add("hero-artless"),
+                    t || setTimeout(() => t || loadHero(), 15e3));
+                });
+          })(),
           (function () {
             let e = fi(20);
             e.length &&
@@ -3076,6 +3277,12 @@ import {
                   let t = progressFor(e.kind, e.id);
                   pushRoute("player", {
                     item: e,
+                    // An episode needs its series, or its progress loses the series and
+                    // its end lands on a "series" page named after the episode.
+                    seriesId: (t && t.seriesId) || null,
+                    seriesName: (t && t.seriesName) || null,
+                    season: (t && t.season) || null,
+                    episodeNumber: (t && t.episodeNumber) || null,
                     resumeAt: t ? t.position : 0,
                   });
                 },
@@ -3091,9 +3298,10 @@ import {
                 onSelect: l,
               });
           })(),
-          (function () {
+          (function loadRows(only) {
             runAsync(this, null, function* () {
-              let i = [
+              let failed = [],
+                i = [
                   {
                     kind: "live",
                     categories: liveCategories,
@@ -3116,10 +3324,12 @@ import {
                 r = 3;
               for (let s of i) {
                 if (t) return;
+                if (only && only.indexOf(s.kind) < 0) continue;
                 let i;
                 try {
                   i = yield s.categories();
                 } catch (e) {
+                  failed.push(s.kind);
                   continue;
                 }
                 for (let o of i) {
@@ -3145,6 +3355,12 @@ import {
                   r > 0 ? (r--, yield c()) : u(i, c);
                 }
               }
+              // A kind whose categories could not load (the line is down, the portal
+              // hiccuped) is fetched again shortly, so Home fills in once it is back.
+              failed.length &&
+                !t &&
+                (showToast(translate("details.offline")),
+                setTimeout(() => t || loadRows(failed), 1e4));
             });
           })());
       },
@@ -3310,6 +3526,30 @@ import {
         openCurrent() {
           let e = this.sources[this.sourceIndex];
           if (!e) return this.exhausted();
+          (this.startTimer && (clearTimeout(this.startTimer), (this.startTimer = null)),
+            this.gateTimer && (clearTimeout(this.gateTimer), (this.gateTimer = null)),
+            this.releaseMedia());
+          // On a single-connection subscription the provider still counts a stream that was
+          // just closed. Opening now gets its "restricted" clip instead of the title, so wait
+          // out the hand-back first.
+          // Switching source inside the same title (failover, stall, quality promotion) always
+          // waits: the stream just cut off is still counted, whatever the channel-zap policy.
+          let wait = this.switching
+            ? streamOpenDelay(!1)
+            : this.options.gate
+              ? streamOpenDelay("live" === this.options.gate)
+              : 0;
+          this.switching = !1;
+          if (wait > 0)
+            return (
+              this.emit("waiting-for-slot", {
+                source: e,
+                wait: wait,
+              }),
+              void (this.gateTimer = setTimeout(() => {
+                ((this.gateTimer = null), this.stopped || this.openCurrent());
+              }, wait))
+            );
           ((this.current = e),
             this.attempted.add(e.id),
             (this.started = !1),
@@ -3337,12 +3577,7 @@ import {
             this.startTimer && (clearTimeout(this.startTimer), (this.startTimer = null)),
             e)
           ) {
-            if (this.options.resumeAt > 0 && isFinite(this.video.duration)) {
-              try {
-                this.video.currentTime = this.options.resumeAt;
-              } catch (e) {}
-              this.options.resumeAt = 0;
-            }
+            this.applyResume();
             (this.emit("playing", {
               source: this.current,
             }),
@@ -3353,13 +3588,20 @@ import {
           (this.watchdog && clearInterval(this.watchdog),
             (this.watchdog = setInterval(() => {
               if (this.stopped || this.video.paused) return;
+              // Some files only report a duration after they start playing; the resume
+              // seek waits for it rather than being dropped and starting from zero.
+              (this.started && this.applyResume(), this.checkResume());
               let e = Date.now(),
                 t = this.video.currentTime;
               if (t > this.lastTime + 0.15)
                 return (
+                  e - (this.lastProgressAt || 0) > 1500 && (this.advanceSince = e),
+                  (this.lastProgressAt = e),
                   (this.lastTime = t),
                   (this.lastAdvance = e),
-                  (this.recoveryStep = 0),
+                  // Only sustained playback clears the recovery ladder: the jump to the resume
+                  // point after a reload is one "advance", not a recovery, or reloads never end.
+                  e - this.advanceSince >= 5e3 && (this.recoveryStep = 0),
                   this.wasStalled &&
                     ((this.wasStalled = !1),
                     this.emit("recovered", {
@@ -3372,6 +3614,33 @@ import {
                 );
               this.started && e - this.lastAdvance > 3500 && this.handleStall();
             }, 500)));
+        }
+        /** Jump to where the viewer left off, once the file knows its length. A place at or
+         *  past the end (the provider now serves a shorter file, or its notice clip) is not
+         *  sought into - that would "finish" the title - and is reported instead. */
+        applyResume() {
+          let r = this.options.resumeAt,
+            d = this.video.duration;
+          if (!(r > 0) || !isFinite(d) || !(d > 0)) return;
+          if (((this.options.resumeAt = 0), r >= d - 1))
+            return void this.emit("resume-failed", {
+              target: r,
+            });
+          try {
+            this.video.currentTime = r;
+          } catch (e) {}
+          ((this.resumeTarget = r), (this.resumeCheckAt = Date.now() + 3e3));
+        }
+        /** Some files ignore a seek and play from the start. Say so, so the screen does not
+         *  save that start over the viewer's real place. */
+        checkResume() {
+          if (!this.resumeTarget || Date.now() < this.resumeCheckAt) return;
+          let r = this.resumeTarget;
+          ((this.resumeTarget = 0),
+            this.video.currentTime < r - 10 &&
+              this.emit("resume-failed", {
+                target: r,
+              }));
         }
         handleStall() {
           ((this.lastAdvance = Date.now()),
@@ -3390,6 +3659,7 @@ import {
                 reason: "stall",
               }),
               (this.sourceIndex = this.sources.indexOf(e)),
+              (this.switching = !0),
               void this.openCurrent()
             );
           this.recover();
@@ -3415,6 +3685,9 @@ import {
                 this.attempted.delete(this.current.id),
                 this.openCurrent());
             else {
+              // The nudge itself is not progress: without this the watchdog counts the
+              // half second as playback, resets the recovery steps, and never reloads.
+              this.lastTime = t + 0.5;
               try {
                 this.video.currentTime = t + 0.5;
               } catch (e) {}
@@ -3437,6 +3710,7 @@ import {
             next: n,
           }),
             (this.sourceIndex = this.sources.indexOf(n)),
+            (this.switching = !0),
             this.openCurrent());
         }
         nextSource(e) {
@@ -3466,6 +3740,7 @@ import {
                   }),
                   this.attempted.delete(e.id),
                   (this.sourceIndex = this.sources.indexOf(e)),
+                  (this.switching = !0),
                   this.openCurrent());
               }, 9e4)));
         }
@@ -3476,8 +3751,15 @@ import {
             this.stop());
         }
         togglePause() {
+          // No stream loaded (waiting for the connection, or stopped): there is nothing to
+          // resume, and play() would only reject.
+          let p = this.video.paused
+            ? this.video.getAttribute("src")
+              ? this.video.play()
+              : null
+            : this.video.pause();
           return (
-            this.video.paused ? this.video.play() : this.video.pause(),
+            p && p.catch && p.catch(() => {}),
             this.emit("paused-changed", {
               paused: this.video.paused,
             }),
@@ -3517,12 +3799,17 @@ import {
           return this.video.paused;
         }
         releaseMedia() {
+          // Any stream closed here - cut off, cut short, or failed - may still be counted
+          // by the provider for a moment. (A live stream the provider ended itself
+          // reconnects without waiting; see the player's "ended".)
+          this.video.getAttribute("src") && noteStreamRelease();
           try {
             (this.video.pause(), this.video.removeAttribute("src"), this.video.load());
           } catch (e) {}
         }
         stopTimers() {
           (this.startTimer && (clearTimeout(this.startTimer), (this.startTimer = null)),
+            this.gateTimer && (clearTimeout(this.gateTimer), (this.gateTimer = null)),
             this.stallTimer && (clearTimeout(this.stallTimer), (this.stallTimer = null)),
             this.promoteTimer && (clearTimeout(this.promoteTimer), (this.promoteTimer = null)),
             this.watchdog && (clearInterval(this.watchdog), (this.watchdog = null)));
@@ -3691,6 +3978,10 @@ import {
       T.classList.toggle("active", isFavourite(t));
     }
     function X() {
+      // Live: a channel reporting a short, finite length is the provider's notice (the
+      // connection is busy), not the channel. Reconnect instead of airing it.
+      if (n && !a.__noticeRetry && a.duration > 0 && a.duration < 90)
+        return ((a.__noticeRetry = !0), learnProviderLingers(), a.stop(), void __lr(0));
       if (n || null !== d) return;
       // When a provider's video host blocks it, the server answers with a short
       // "this video has been restricted" clip in place of the film or episode. A
@@ -3749,6 +4040,7 @@ import {
             (h = 0),
             k.classList.remove("seeking"),
             a.seekTo(t),
+            (a.__floor = 0),
             e.seriesId && t > a.position && (Hi(e.seriesId, t), Q()));
         }, 450)));
     }
@@ -3797,6 +4089,19 @@ import {
         }));
     }
     function ne() {
+      // Nothing has played yet, or the resume seek is still pending: the position is the
+      // start of the file, not where the viewer is, and saving it would lose their place.
+      if (!a.__ok || (a.options && a.options.resumeAt > 0)) return;
+      // Not while reconnecting (a cut file reports its duration as the cut point), not from
+      // the provider's short notice clip, and not from before a resume seek the file
+      // refused: each would overwrite or delete the viewer's real place.
+      if (
+        a.__retrying ||
+        a.__blocked ||
+        (a.duration > 0 && a.duration < 90) ||
+        a.position < (a.__floor || 0)
+      )
+        return;
       n ||
         mi(
           {
@@ -3811,7 +4116,7 @@ import {
             episodeNumber: e.episodeNumber || null,
           },
           a.position,
-          a.duration,
+          Math.max(a.__dur || 0, a.duration || 0),
         );
     }
     function ie(e) {
@@ -3862,11 +4167,21 @@ import {
           return r.length ? r.sort((e, t) => e.rank - t.rank)[0] : n[0];
         })(t, e),
         r = channelSources(t);
-      return [i].concat(r.filter((e) => e.id !== i.id));
+      // The best few copies of the channel are plenty to fail over between; a popular
+      // channel listed in every category would otherwise mean trying a dozen dead streams.
+      return [i].concat(r.filter((e) => e.id !== i.id)).slice(0, 6);
     }
     (a.on("loading", () => {
       J(0, "");
     }),
+      a.on("waiting-for-slot", () => {
+        J(0, translate("welcome.connecting"));
+      }),
+      a.on("resume-failed", (x) => {
+        // The file would not jump to the saved place: until the viewer seeks, nothing
+        // earlier than it is saved over it.
+        a.__floor = x.target;
+      }),
       a.on("playing", (e) => {
         (J(0, ""),
           n && (nr = t),
@@ -3877,7 +4192,20 @@ import {
       }),
       a.on("progress", () => {
         J(0, "");
-        n || ((a.__pos = a.position), (a.__dur = Math.max(a.__dur || 0, a.duration || 0)));
+        // The provider's short notice clip "plays" too; none of it counts as watching.
+        if (a.duration > 0 && a.duration < 90) return;
+        // "Sustained" means progress without a gap: a reload that jumps to the resume point
+        // produces one progress event, which must not refill the retry budget.
+        let now = Date.now();
+        (now - (a.__lastProgress || 0) > 1500 && (a.__since = now),
+          (a.__lastProgress = now),
+          (a.__ok = a.__ok || now),
+          (a.__retrying = !1),
+          (a.__noticeRetry = !1),
+          now - a.__since >= 5e3 && (a.__rt = 0));
+        n ||
+          a.position < (a.__floor || 0) ||
+          ((a.__pos = a.position), (a.__dur = Math.max(a.__dur || 0, a.duration || 0)));
       }),
       a.on("recovered", () => {
         J(0, "");
@@ -3900,9 +4228,14 @@ import {
         __lr(__pos());
       }),
       a.on("ended", () => {
-        if (n) return void __lr(0);
+        // The provider ends live streams every minute or so; that stream is gone at its end
+        // already, so the same channel reconnects at once.
+        if (n) return void __lr(0, !0);
         var q = a.position,
           d = Math.max(a.__dur || 0, a.duration || 0);
+        // Seconds-long "titles" are the provider's notice, not the film ending: keep the
+        // viewer's place and try again once the connection is free.
+        if (d > 0 && d < 90) return void __lr(__pos());
         if (d > 0 && q >= d - 3) {
           ne();
           if (A) return void te();
@@ -3912,9 +4245,10 @@ import {
                 kind: "series",
                 id: e.seriesId,
               });
-            if (t && t.id)
+            // (An episode without its series has no page of its own to land on.)
+            if (t && t.id && "episode" !== t.kind)
               return void replaceRoute("details", {
-                kind: "episode" === t.kind ? "series" : t.kind || "movie",
+                kind: t.kind || "movie",
                 id: t.id,
                 item: t,
               });
@@ -4000,12 +4334,13 @@ import {
     function ae() {
       ((se.hidden = !0), focusElement(L), V());
     }
-    function __lr(r) {
+    function __lr(r, noGate) {
       if (p) return;
-      if (a.__ok && Date.now() - a.__ok >= 5e3) a.__rt = 0;
-      a.__rt = (a.__rt || 0) + 1;
+      // The retry budget refills only after sustained playback (see "progress"), never just
+      // because something played once long ago - or a dead line would retry forever.
+      ((a.__rt = (a.__rt || 0) + 1), (a.__retrying = !0), (a.__since = 0));
       if (a.__rt > 3) {
-        J(0, translate("player.unavailable"));
+        J(0, translate(n ? "player.unavailable" : "player.titleUnavailable"));
         return;
       }
       J(0, translate("welcome.connecting"));
@@ -4013,21 +4348,26 @@ import {
       a.__t = setTimeout(() => {
         if (p) return;
         try {
-          a.play(re(), ie, {
+          // A retry tries the best few sources, not every copy of the channel in every
+          // category (18 for a popular one) over and over.
+          a.play(n ? re().slice(0, 3) : re(), ie, {
             resumeAt: r > 2 ? r : 0,
             noPromote: !n,
+            gate: !noGate && (n ? "live" : !0),
           });
         } catch (e) {
-          J(0, translate("player.unavailable"));
+          J(0, translate(n ? "player.unavailable" : "player.titleUnavailable"));
         }
       }, 600);
     }
     function __pos() {
-      return n ? 0 : a.__pos || a.position || 0;
+      // Before anything has played, the place to retry from is where the viewer left
+      // off, not the start of the file.
+      return n
+        ? 0
+        : Math.max(a.__pos || 0, a.__floor || 0, a.__ok ? 0 : e.resumeAt || 0) || a.position || 0;
     }
-    a.on("playing", () => {
-      a.__ok = Date.now();
-    });
+    // (a.__ok is set by the first real progress, not by "playing": a notice clip plays too.)
     return {
       mount(t) {
         (((e) => {
@@ -4038,11 +4378,13 @@ import {
           ee(),
           n || Q(),
           (function () {
-            let t = re();
             (J(0, ""),
-              a.play(t, ie, {
+              a.play(re(), ie, {
                 resumeAt: e.resumeAt || 0,
                 noPromote: !n,
+                // Wait for a stream just handed back to be released (see streamOpenDelay:
+                // live channels only wait when this provider needs it).
+                gate: n ? "live" : !0,
               }));
           })(),
           V(),
@@ -4330,7 +4672,9 @@ import {
                     let n = progressFor("episode", i.id);
                     n && n.updatedAt > t && ((t = n.updatedAt), (e = i));
                   }
-                L(e || l.seasons[0].episodes[0]);
+                // (A season can come back empty; start from the first episode that exists.)
+                let first = l.seasons.filter((s) => s.episodes.length)[0];
+                (e = e || (first && first.episodes[0])) && L(e);
               })()
             : (function () {
                 let t = progressFor("movie", e.id);
@@ -4585,11 +4929,16 @@ import {
     return runAsync(this, null, function* () {
       let n = yield e(),
         i = [];
+      i.partial = !1;
       for (let e of n) {
         try {
           i.push.apply(i, yield t(e.id));
-        } catch (e) {}
-        yield pr(120);
+        } catch (e) {
+          i.partial = !0;
+        }
+        // One frame between categories keeps the TV responsive; a longer pause only added
+        // seconds of waiting to the first search on a big catalogue (90 categories x 120 ms).
+        yield pr(16);
       }
       return i;
     });
@@ -4606,16 +4955,17 @@ import {
           (yr = runAsync(null, null, function* () {
             let e = yield gr(liveCategories, liveStreams),
               t = yield gr(vodCategories, vodStreams),
-              n = yield gr(seriesCategories, Ht);
-            return (
-              (vr = {
+              n = yield gr(seriesCategories, Ht),
+              index = {
                 live: fr(e),
                 movies: fr(t),
                 series: fr(n),
-              }),
-              (yr = null),
-              vr
-            );
+              };
+            // An index missing a category that failed to load is used for this search but
+            // not kept, so the next search tries to complete it.
+            return ((yr = null), e.partial || t.partial || n.partial || (vr = index), index);
+          }).catch((e) => {
+            throw ((yr = null), e);
           }));
   }
   var xr = null,
@@ -4940,11 +5290,25 @@ import {
           l = e;
           for (let t of d.querySelectorAll(".category-button"))
             t.classList.toggle("active", Number(t.getAttribute("data-index")) === e);
-          ((p.textContent = s[e].name), (a = []), _.setTotal(0));
+          // The list is about to be emptied: if focus was in it, park it on the category and
+          // bring it back to the first row once the new list is in.
+          let wasInList = !!focusedElement() && f.contains(focusedElement());
+          (wasInList && focusElement(d.querySelector(".category-button.active"), { exact: !0 }),
+            (p.textContent = s[e].name),
+            (a = []),
+            _.setTotal(0));
           try {
             let n = yield t.items(s[e].id);
             if (o || l !== e) return;
-            if (((a = n), _.setTotal(a.length), !u && t.defaultItem)) {
+            if (
+              ((a = n),
+              _.setTotal(a.length),
+              wasInList &&
+                focusedElement() &&
+                focusedElement().classList.contains("category-button") &&
+                focusElement(f.querySelector(".channel-row, .card"), { exact: !0 }),
+              !u && t.defaultItem)
+            ) {
               u = !0;
               let e = a.findIndex((e) => t.defaultItem.test(e.name));
               e > 0 && _.scrollTo(e);
@@ -5008,6 +5372,12 @@ import {
         if (t.classList.contains("category-button")) {
           x(!1);
           var __p = __cf();
+          if (!__p) {
+            // Nothing is loaded for this category - it failed, or came back empty - so OK
+            // tries again rather than only moving away and back doing so.
+            var __ix = Number(t.getAttribute("data-index"));
+            isNaN(__ix) || (__ix === l && a.length) || (__p = T(__ix));
+          }
           if (__p && __p.then) {
             __p.then(function () {
               var q = f.querySelector(".channel-row, .card");
@@ -5031,10 +5401,10 @@ import {
             g.appendChild(e);
           })(b.node),
             e.appendChild(k),
-            (function () {
+            (function loadCategories() {
               return runAsync(this, null, function* () {
                 if (((s = yield t.categories()), o)) return;
-                S.setTotal(s.length);
+                (S.setTotal(s.length), (p.textContent = ""));
                 let e = t.defaultCategory
                   ? Math.max(
                       0,
@@ -5042,10 +5412,13 @@ import {
                     )
                   : 0;
                 (S.scrollTo(e), focusInto(k, S.node(e)), yield T(e));
+              }).catch(() => {
+                // The portal may be back in a moment: keep trying while this screen is open.
+                o ||
+                  ((p.textContent = "Could not load categories."),
+                  setTimeout(() => o || loadCategories(), 5e3));
               });
-            })().catch(() => {
-              p.textContent = "Could not load categories.";
-            }));
+            })());
         },
         unmount() {
           ((o = !0), y && y.destroy(), clearChildren(k));
@@ -5365,7 +5738,16 @@ import {
           if ((clearChildren(o), n.length < 2))
             return void (l.textContent = "Type at least two characters.");
           br() || (l.textContent = "Preparing search…");
-          let i = yield wr();
+          let i;
+          try {
+            i = yield wr();
+          } catch (err) {
+            return void (
+              t ||
+              qr(s.value) !== n ||
+              (l.textContent = "Search is not available right now. Try again in a moment.")
+            );
+          }
           if (t || qr(s.value) !== n) return;
           u.refreshSuggestions();
           let a = [
@@ -5528,6 +5910,8 @@ import {
       t.addEventListener("focus-activate", (e) => {
         let t = e.target.closest(".settings-row");
         if (!t) return;
+        let key = t.__key,
+          list = t.parentNode;
         let n = settings();
         switch (t.__key) {
           case "language": {
@@ -5591,6 +5975,9 @@ import {
             return;
         }
         s();
+        // The rows were rebuilt: keep focus on the one just changed.
+        let again = Array.prototype.filter.call(list ? list.children : [], (r) => r.__key === key)[0];
+        again && focusElement(again, { exact: !0 });
       }),
       {
         mount(t) {
@@ -5930,6 +6317,8 @@ import {
       }
     );
   }
+  var lastDirKey = 0,
+    lastDirAt = 0;
   function zr() {
     applyDocumentLanguage();
     let e = (function (e, t) {
@@ -5964,11 +6353,75 @@ import {
       registerRoute("settings", jr),
       registerRoute("freetv", Kr),
       document.addEventListener("focus-moved", s),
+      // Magic Remote pointer: focus follows the pointer and a click is OK. Only real
+      // movement counts - Chromium re-sends a mousemove at the same spot when content
+      // slides under a resting pointer, and following that would move focus on its own.
+      (function () {
+        let lx = -1,
+          ly = -1,
+          keyAt = -1e9,
+          kx = -1,
+          ky = -1;
+        function target(e) {
+          let t = e.target && e.target.closest ? e.target.closest(".focusable") : null,
+            trap = document.querySelector("[data-focus-trap]");
+          return !t || t.classList.contains("disabled") || (trap && !trap.contains(t)) ? null : t;
+        }
+        (document.addEventListener(
+          "keydown",
+          () => {
+            ((keyAt = Date.now()), (kx = lx), (ky = ly));
+          },
+          !0,
+        ),
+          document.addEventListener("mousemove", (e) => {
+          if (e.clientX === lx && e.clientY === ly) return;
+          ((lx = e.clientX), (ly = e.clientY));
+          // A hand resting on the Magic Remote jitters a few pixels. Just after a key press
+          // that is not a choice to pull focus back under the pointer.
+          if (Date.now() - keyAt < 1500 && Math.abs(lx - kx) + Math.abs(ly - ky) < 30) return;
+          lastInputAt = Date.now();
+          let t = target(e);
+          t && t !== focusedEl && focusElement(t, { exact: !0 });
+        }),
+          document.addEventListener("click", (e) => {
+            let t = target(e);
+            t &&
+              (t !== focusedEl && focusElement(t, { exact: !0 }),
+              t.dispatchEvent(new CustomEvent("focus-activate", { bubbles: !0 })),
+              e.preventDefault());
+          }));
+      })(),
       document.addEventListener("keydown", (e) => {
-        let n = e.keyCode;
+        let n = e.keyCode,
+          at = Date.now();
+        lastInputAt = at;
+        // One press, one action: the same key again inside 50 ms is the remote echoing
+        // itself, not the viewer pressing twice - for arrows, OK and Back alike.
+        if (n === lastDirKey && at - lastDirAt < 50) return void e.preventDefault();
+        ((lastDirKey = n), (lastDirAt = at));
         if (q(n)) return void e.preventDefault();
         let i = DIRECTION_BY_KEY[n];
-        if (i) return (moveFocus(i), void e.preventDefault());
+        if (i) {
+          let fromContent =
+              "left" === i &&
+              !!focusedEl &&
+              document.contains(focusedEl) &&
+              !t.node.contains(focusedEl) &&
+              "none" !== t.node.style.display &&
+              !document.querySelector("[data-focus-trap]"),
+            moved = moveFocus(i);
+          // Left out of a screen opens the menu on that screen's own item. Geometry alone
+          // picked whichever item sat level with the button (Free TV, at the bottom, so
+          // the next Down did nothing) and found none while the menu was animating shut.
+          if (fromContent && (!moved || t.node.contains(focusedEl))) {
+            let b = t.button(currentRoute());
+            b
+              ? focusElement(b, { exact: !0 })
+              : moved || focusElement(t.button("home"), { exact: !0 });
+          }
+          return void e.preventDefault();
+        }
         if (isSelectKey(n))
           return (
             focusedEl &&
@@ -5981,7 +6434,7 @@ import {
           );
         if (isBackKey(n)) {
           if (!goBack()) {
-            focusElement(t.button(currentRoute()) || t.button("home"));
+            focusElement(t.button(currentRoute()) || t.button("home"), { exact: !0 });
           }
           e.preventDefault();
         }
@@ -5999,19 +6452,22 @@ import {
             } catch (e) {}
           })(),
           navigateRoot("home", {}),
-          (channelsByName
-            ? Promise.resolve(channelsByName)
-            : gn ||
-              (gn = runAsync(null, null, function* () {
-                let e = yield liveCategories(),
-                  t = Object.create(null);
-                for (let n of e) {
-                  let e;
-                  try {
-                    e = yield liveStreams(n.id);
-                  } catch (e) {
-                    continue;
-                  }
+          (function buildChannelIndex(force, attempt) {
+            (!force && channelsByName
+              ? Promise.resolve(channelsByName)
+              : gn ||
+                (gn = runAsync(null, null, function* () {
+                  let e = yield liveCategories(),
+                    t = Object.create(null),
+                    partial = !1;
+                  for (let n of e) {
+                    let e;
+                    try {
+                      e = yield liveStreams(n.id);
+                    } catch (e) {
+                      partial = !0;
+                      continue;
+                    }
                   for (let i of e) {
                     let e = fn(i.name);
                     if (!e) continue;
@@ -6028,9 +6484,21 @@ import {
                   }
                 }
                 for (let e of Object.keys(t)) t[e].sort((e, t) => e.rank - t.rank);
+                // A category that failed leaves the index short: fill it in once, later.
+                partial && !force && setTimeout(() => buildChannelIndex(!0), 12e4);
                 return ((gn = null), (channelsByName = t));
+              }).catch((e) => {
+                throw ((gn = null), e);
               }))
-          ).catch(() => {}))
+            ).catch(() => {
+              // The line was down at boot: build the index once it is back (bounded).
+              (attempt || 0) < 10 &&
+                setTimeout(
+                  () => channelsByName || buildChannelIndex(!1, (attempt || 0) + 1),
+                  Math.min(6e4, 15e3 * Math.pow(2, attempt || 0)),
+                );
+            });
+          })())
         : navigateRoot("welcome", {}),
       s());
   }
