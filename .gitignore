@@ -17,3 +17,6 @@ desktop.ini
 
 # Simulator output (screenshots, report)
 /tools/sim/out/
+
+# Platform builds (Tizen .wgt etc.)
+/dist/

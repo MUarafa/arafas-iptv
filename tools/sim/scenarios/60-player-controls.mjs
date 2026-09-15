@@ -88,6 +88,19 @@ export default [
     },
   },
   {
+    name: "Samsung Tizen key codes: Play/Pause (10252) toggles, Back (10009) leaves the player",
+    async run({ open, server, expect }) {
+      let app = await startFilm(open, server);
+      await app.key(10252, 400);
+      expect.eq((await video(app)).paused, true, "Tizen Play/Pause pauses");
+      await app.key(10252, 400);
+      expect.eq((await video(app)).paused, false, "Tizen Play/Pause resumes");
+      await app.tick(6000); // let the controls hide, so one Back leaves
+      await app.key(10009, 400);
+      expect(((await app.state()).route || "") !== "player", "Tizen Back left the player");
+    },
+  },
+  {
     name: "a TV that pauses on its own media key is not toggled back",
     async run({ open, server, expect }) {
       let app = await startFilm(open, server);

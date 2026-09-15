@@ -15,6 +15,19 @@ device, not only in theory.
   still get their resume seek instead of silently playing from the beginning.
 - **The menu shows where you are.** The focused item sits on a red-framed card, not just a
   faint tint, and the card frames the icon even while the rail is collapsed.
+- **Runs on Samsung TVs (Tizen).** The same app, packaged as a signed `.wgt`
+  (`platforms/tizen/build.sh install <TV IP>`, Samsung certificate profile `arafas`). The
+  remote's Samsung key codes are translated where keys come in (Back 10009, Play/Pause
+  10252, channel 427/428) and its media, colour and number keys are registered with the
+  TV. Live channels ask for HLS on Tizen, whose video element does not play raw MPEG-TS -
+  those channels loaded and never started; the "Live stream format" setting is hidden there.
+  First installed on a 2024 UA55DU7000 (Tizen 8.0).
+- **Accounts.** A menu item below Free TV and the first Settings row open a list of saved
+  accounts: OK switches (the app restarts on it), Yellow removes one, "Add account" opens an
+  empty sign-in. Every account that signs in is saved, and each keeps its own Continue
+  Watching, favourites and what was learned about its provider. A local build can ship
+  accounts from `secrets/accounts.json` (never committed); they are seeded once, on a TV
+  with none saved.
 - **The player's controls can be reached again.** Every Left/Right in a film was taken as a
   seek, so Skip intro, Next episode, Fit and Quality could not be reached, and the bar hid
   after 4.5 s even while you were pressing keys. Left/Right still seek by default - also in

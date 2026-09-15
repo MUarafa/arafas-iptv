@@ -50,7 +50,7 @@ Honest scope, so you can decide what is worth paying for:
 
 | Platform | What it would take |
 |---|---|
-| **Samsung (Tizen)** | A real port, not a repackage. The screens and layout are reusable, but video goes through Samsung's `AVPlay` rather than `<video>` for most live streams, the remote key codes differ (Back is 10009), packaging is `.wgt` via Tizen Studio, and it is a separate store and review. Realistically the player layer and the key handling are rewritten; the rest largely survives. |
+| **Samsung (Tizen)** | **Working (first install 2026-09-15, UA55DU7000, Tizen 8.0).** The same app/ is packaged as a signed `.wgt` by `platforms/tizen/build.sh` with `platforms/tizen/config.xml`; Samsung key codes are translated at the key handler and media keys registered via `tizen.tvinputdevice`; live channels use HLS because Tizen's `<video>` does not play raw TS. Needs Tizen Studio (CLI + Certificate Manager) and a Samsung certificate with the TV's DUID. Still to evaluate: MKV/HEVC VOD and whether `AVPlay` is needed for some streams. |
 | **Android TV** | A different application. The UI could be a WebView wrapper, but anything competitive there uses ExoPlayer natively — and that market already has TiviMate and IBO. |
 | **Roku** | A full rewrite in BrightScript/SceneGraph. Nothing carries over. |
 | **Vidaa / Hisense, Foxxum, Zeasn** | Web-app platforms, closer to LG than to Roku. A port is plausible once the Tizen work has separated the player layer from the screens. |

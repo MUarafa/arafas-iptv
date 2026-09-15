@@ -94,3 +94,33 @@ export var DIGITS = "0123456789".split(""),
   },
   Vn = Object.assign({}, KEYBOARD_LAYOUTS, Bn),
   Wn = [".", "-", "_", ":", "/", "@"];
+
+// Samsung Tizen sends its own codes for a few keys; the app speaks webOS codes throughout,
+// so they are translated once, where keys come in.
+export var TIZEN_KEY_MAP = {
+  10009: KEY_BACK,
+  10252: KEY_PLAY_PAUSE,
+  427: KEY_CHANNEL_UP,
+  428: KEY_CHANNEL_DOWN,
+};
+
+export function normalizeKey(e) {
+  return TIZEN_KEY_MAP[e] || e;
+}
+
+/** On Tizen the media, channel, colour and number keys reach a web app only once registered. */
+export function registerTvKeys() {
+  try {
+    var input = window.tizen && window.tizen.tvinputdevice;
+    if (!input) return;
+    [
+      "MediaPlayPause", "MediaPlay", "MediaPause", "MediaStop", "MediaRewind", "MediaFastForward",
+      "ChannelUp", "ChannelDown", "ColorF0Red", "ColorF1Green", "ColorF2Yellow", "ColorF3Blue",
+      "0", "1", "2", "3", "4", "5", "6", "7", "8", "9",
+    ].forEach(function (k) {
+      try {
+        input.registerKey(k);
+      } catch (e) {}
+    });
+  } catch (e) {}
+}

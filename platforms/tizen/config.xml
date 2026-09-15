@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Samsung Tizen TV packaging for Arafa's IPTV. The app itself is app/ unchanged; the
+  Tizen build copies it next to this file and packages both as a .wgt
+  (see platforms/tizen/build.sh).
+-->
+<widget xmlns="http://www.w3.org/ns/widgets" xmlns:tizen="http://tizen.org/ns/widgets"
+        id="http://muara.com/arafasiptv" version="1.0.9" viewmodes="maximized">
+  <tizen:application id="MuaraIPTV0.ArafasIPTV" package="MuaraIPTV0" required_version="3.0"/>
+  <tizen:profile name="tv-samsung"/>
+  <content src="index.html"/>
+  <name>Arafa's IPTV</name>
+  <icon src="largeIcon.png"/>
+  <feature name="http://tizen.org/feature/screen.size.all"/>
+
+  <tizen:privilege name="http://tizen.org/privilege/internet"/>
+  <tizen:privilege name="http://tizen.org/privilege/tv.inputdevice"/>
+  <tizen:privilege name="http://developer.samsung.com/privilege/network.public"/>
+
+  <!-- Portals and playlists live on any host, usually plain http. -->
+  <access origin="*" subdomains="true"/>
+  <tizen:allow-navigation>*</tizen:allow-navigation>
+
+  <tizen:setting screen-orientation="landscape" context-menu="disable"
+                 background-support="disable" encryption="disable"
+                 install-location="auto" hwkey-event="enable"/>
+</widget>

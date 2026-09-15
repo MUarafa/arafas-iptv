@@ -11,7 +11,7 @@ export default [
       expect.eq(s.route, "home", "route after boot");
       expect(s.focusCount === 1, "exactly one focused element, got " + s.focusCount);
       expect(await app.eval("!!document.querySelector('.hero.hero-ready')"), "hero never became ready");
-      expect.eq(await app.eval("document.querySelectorAll('.rail-icon svg').length"), 9, "menu icons");
+      expect.eq(await app.eval("document.querySelectorAll('.rail-icon svg').length"), 10, "menu icons");
     },
   },
   {

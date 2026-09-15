@@ -50,6 +50,8 @@ import {
   KEYBOARD_LAYOUTS,
   KEY_BACK,
   KEY_BACKSPACE,
+  normalizeKey,
+  registerTvKeys,
   KEY_BLUE,
   KEY_CHANNEL_DOWN,
   KEY_CHANNEL_UP,
@@ -260,6 +262,126 @@ import {
     if (!e) throw new Error("Not signed in");
     return e;
   }
+
+  // ---------------------------------------------------------------- saved accounts
+  var ACCOUNTS_KEY = "iptv:accounts",
+    // What belongs to one account rather than to the TV: its progress, favourites, playback
+    // marks and what was learned about its provider. Parked under the account's id when it
+    // is switched away from, and brought back when it is switched to.
+    ACCOUNT_SCOPED_KEYS = [
+      "iptv:resume",
+      "iptv:favorites",
+      "iptv:preferences",
+      "iptv:maxConnections",
+      "iptv:providerLingers",
+    ];
+  function accountId(kind, creds) {
+    return "free" === kind
+      ? "free"
+      : kind + "|" + String((creds && creds.url) || "") + "|" + String((creds && creds.username) || "");
+  }
+  function readAccounts() {
+    try {
+      let a = JSON.parse(localStorage.getItem(ACCOUNTS_KEY) || "[]");
+      return Array.isArray(a) ? a.filter((x) => x && x.id) : [];
+    } catch (e) {
+      return [];
+    }
+  }
+  function writeAccounts(list) {
+    try {
+      localStorage.setItem(ACCOUNTS_KEY, JSON.stringify(list));
+    } catch (e) {}
+  }
+  function currentAccountId() {
+    let kind = sourceKind(),
+      creds = readCredentials();
+    return "free" === kind ? "free" : creds ? accountId(kind, creds) : null;
+  }
+  /** Remember an account that signed in, most recent first. */
+  function rememberAccount(kind, creds) {
+    let id = accountId(kind, creds),
+      list = readAccounts().filter((a) => a.id !== id);
+    (list.unshift({
+      id: id,
+      kind: kind,
+      url: creds ? creds.url : "",
+      username: creds ? creds.username : "",
+      password: creds ? creds.password : "",
+      at: Date.now(),
+    }),
+      writeAccounts(list.slice(0, 20)));
+  }
+  /** Park one account's own data under its id and bring another's back (or start empty). */
+  function swapAccountData(fromId, toId) {
+    try {
+      for (let k of ACCOUNT_SCOPED_KEYS) {
+        if (fromId) {
+          let v = localStorage.getItem(k),
+            parked = "iptv:acct:" + fromId + ":" + k;
+          null == v ? localStorage.removeItem(parked) : localStorage.setItem(parked, v);
+        }
+        let saved = toId ? localStorage.getItem("iptv:acct:" + toId + ":" + k) : null;
+        null == saved ? localStorage.removeItem(k) : localStorage.setItem(k, saved);
+      }
+    } catch (e) {}
+  }
+  // Accounts a local build ships with (secrets/accounts.json, injected into the package by
+  // the build scripts and never committed). Seeded once, on a TV with no saved accounts.
+  var PRESET_ACCOUNTS = { json: "" };
+  function seedPresetAccounts() {
+    if (!PRESET_ACCOUNTS.json) return;
+    try {
+      if (localStorage.getItem(ACCOUNTS_KEY)) return;
+      let list = JSON.parse(PRESET_ACCOUNTS.json);
+      if (!Array.isArray(list)) return;
+      let accts = list
+        .filter((a) => a && a.url && a.username)
+        .map((a, n) => {
+          let creds = {
+            url: String(a.url).trim().replace(/\/+$/, ""),
+            username: String(a.username).trim(),
+            password: String(a.password || "").trim(),
+          };
+          return Object.assign({ id: accountId("xtream", creds), kind: "xtream", label: a.label || "", at: Date.now() - n }, creds);
+        });
+      if (!accts.length) return;
+      writeAccounts(accts);
+      // Nothing signed in yet: start on the first one.
+      readCredentials() ||
+        (localStorage.setItem(SOURCE_KIND_KEY, "xtream"),
+        localStorage.setItem(
+          CREDENTIALS_KEY,
+          JSON.stringify({ url: accts[0].url, username: accts[0].username, password: accts[0].password }),
+        ),
+        (credentialsCache = null),
+        (sourceKindCache = null));
+    } catch (e) {}
+  }
+  /** Make a saved account the active one. Everything held in memory belongs to the old
+   *  account (lists, caches, the channel index), so the app starts afresh on the new one. */
+  function switchAccount(acct) {
+    let from = currentAccountId();
+    if (!acct || acct.id === from) return !1;
+    (from &&
+      !readAccounts().some((a) => a.id === from) &&
+      rememberAccount(sourceKind(), "free" === from ? null : readCredentials()),
+      swapAccountData(from, acct.id));
+    try {
+      (localStorage.setItem(SOURCE_KIND_KEY, acct.kind),
+        "free" === acct.kind
+          ? localStorage.removeItem(CREDENTIALS_KEY)
+          : localStorage.setItem(
+              CREDENTIALS_KEY,
+              JSON.stringify({
+                url: acct.url,
+                username: acct.username,
+                password: acct.password,
+              }),
+            ));
+    } catch (e) {}
+    return (le(), setTimeout(() => location.reload(), 300), !0);
+  }
   var SETTINGS_KEY = "iptv:settings",
     DEFAULT_SETTINGS = {
       preferLowerBitrate: !0,
@@ -280,6 +402,14 @@ import {
       e && Object.assign(settingsCache, JSON.parse(e));
     } catch (e) {}
     return settingsCache;
+  }
+  /**
+   * The live stream format to ask the portal for. Raw TS starts faster on LG, but Samsung's
+   * Tizen video element does not play MPEG-TS at all - those channels load and never start -
+   * so Tizen always asks for HLS.
+   */
+  function liveStreamFormat() {
+    return window.tizen ? "m3u8" : settings().liveFormat;
   }
   function saveSettings(e) {
     let t = Object.assign(settings(), e);
@@ -1627,6 +1757,9 @@ import {
         '<circle cx="12" cy="12" r="9"%R/>' +
         '<path d="M3.4 12h17.2M12 3c2.5 2.6 3.7 5.6 3.7 9s-1.2 6.4-3.7 9c-2.5-2.6-3.7-5.6-3.7-9S9.5 5.6 12 3z"' +
         RAIL_WHITE_LINE + '"1.6"/>',
+      account:
+        '<circle cx="12" cy="8.2" r="4.2"%R/><path d="M4 20.8c.9-4.1 4-6.6 8-6.6s7.1 2.5 8 6.6"%R/>' +
+        '<path d="M10.7 6.6v3.2l2.8-1.6z"' + RAIL_WHITE + "/>",
     };
   function railIconSvg(id) {
     let grad = "rail-grad-" + id;
@@ -1680,6 +1813,12 @@ import {
       id: "freetv",
       key: "nav.freetv",
       personalOnly: !0,
+    },
+    // Sign in, or switch account, at any time - not only on the first screen, which a
+    // viewer can skip and then had no way back to.
+    {
+      id: "account",
+      key: "nav.account",
     },
   ];
   function dn() {
@@ -2071,8 +2210,9 @@ import {
       detailKey: "welcome.freeDetail",
     },
   ];
-  function ei() {
-    let e = readCredentials() || U,
+  function ei(opts) {
+    // "Add account" opens this empty; otherwise it starts from the account in use.
+    let e = (!(opts && opts.fresh) && readCredentials()) || U,
       t = !1,
       s = null,
       a = createElement("div", {
@@ -2287,8 +2427,8 @@ import {
           ((t = !0), (a.textContent = ""), (h.textContent = r || translate("welcome.connecting")));
           // Try the account in memory first. It is written to storage only once the portal
           // has accepted it, so a failed sign-in never leaves the TV signed in to nothing.
-          let prevKind = sourceKindCache,
-            prevCredentials = credentialsCache;
+          let prevKind = sourceKind(),
+            prevCredentials = readCredentials();
           ((sourceKindCache = e),
             i &&
               (credentialsCache = {
@@ -2301,11 +2441,28 @@ import {
             et && et());
           try {
             yield activeAdapter().authenticate();
+            // Signed in: remember the account and give it its own progress and favourites,
+            // parking the previous account's. A different account starts the app afresh.
+            let prevId =
+                "free" === prevKind
+                  ? "free"
+                  : prevCredentials
+                    ? accountId(prevKind, prevCredentials)
+                    : null,
+              newId = accountId(e, "free" === e ? null : credentialsCache);
+            (prevId &&
+              prevId !== newId &&
+              !readAccounts().some((a) => a.id === prevId) &&
+              rememberAccount(prevKind, "free" === prevKind ? null : prevCredentials),
+              prevId !== newId && swapAccountData(prevId, newId));
             try {
               (localStorage.setItem(SOURCE_KIND_KEY, e),
                 i && localStorage.setItem(CREDENTIALS_KEY, JSON.stringify(credentialsCache)));
             } catch (e) {}
-            navigateRoot("home", {});
+            rememberAccount(e, "free" === e ? null : credentialsCache);
+            prevId && prevId !== newId
+              ? (le(), setTimeout(() => location.reload(), 300))
+              : navigateRoot("home", {});
           } catch (e) {
             ((sourceKindCache = prevKind),
               (credentialsCache = prevCredentials),
@@ -2988,10 +3145,11 @@ import {
       S || !b.length || (L((w + 1) % b.length), s && _ && A());
     }
     function O() {
-      if (!(b.length < 2)) {
-        if (s && _) return void A();
-        R();
-      }
+      // The first title can preview as soon as it is ready. Waiting for the whole list meant
+      // a slow portal (one info request per title, up to eight) showed a still spotlight
+      // for a minute or more; later titles join the rotation as they arrive.
+      if (s && _) return void A();
+      b.length < 2 || R();
     }
     function P(e) {
       return new Promise((t) => {
@@ -4124,7 +4282,7 @@ import {
       return e.url
         ? e.url
         : n
-          ? Gt(e.id, settings().liveFormat, e.item || t)
+          ? Gt(e.id, liveStreamFormat(), e.item || t)
           : "episode" === t.kind
             ? (function (e, t) {
                 return activeAdapter().episodeUrl(e, t);
@@ -5412,7 +5570,7 @@ import {
           if (y)
             return void (y.isPreviewing(t.__item)
               ? (y.release(), L(t.__item))
-              : y.play(t.__item, Gt(t.__item.id, settings().liveFormat, t.__item)));
+              : y.play(t.__item, Gt(t.__item.id, liveStreamFormat(), t.__item)));
           L(t.__item);
         }
       }),
@@ -5826,6 +5984,100 @@ import {
       }
     );
   }
+  /** Saved accounts: switch between them, add one, remove one (Yellow/Blue). */
+  function accountsScreen() {
+    let page = createPage({
+        title: translate("accounts.title"),
+      }),
+      list = createElement("div", {
+        class: "settings-list",
+        "data-focus-memory": "accounts",
+      });
+    function row(key, label, detail, value) {
+      let r = createElement(
+        "div",
+        {
+          class: "settings-row focusable",
+        },
+        [
+          createElement("div", { class: "settings-text" }, [
+            createElement("div", { class: "settings-label", dir: "auto", text: label }),
+            createElement("div", { class: "settings-description", dir: "auto", text: detail }),
+          ]),
+          createElement("div", { class: "settings-value", text: value }),
+        ],
+      );
+      return ((r.__key = key), r);
+    }
+    function render() {
+      clearChildren(list);
+      let cur = currentAccountId(),
+        accts = readAccounts();
+      // An account signed in before accounts were saved (or on another version) still counts.
+      cur &&
+        !accts.some((a) => a.id === cur) &&
+        (rememberAccount(sourceKind(), "free" === cur ? null : readCredentials()),
+        (accts = readAccounts()));
+      for (let a of accts) {
+        let free = "free" === a.kind,
+          host = String(a.url || "").replace(/^https?:\/\//, ""),
+          r = row(
+            a.id,
+            free ? translate("nav.freetv") : a.label ? a.label + "  ·  " + a.username : a.username || host,
+            free ? translate("accounts.freeDetail") : host + ("m3u" === a.kind ? "  ·  M3U" : ""),
+            a.id === cur ? translate("accounts.active") : "",
+          );
+        ((r.__account = a), a.id === cur && r.classList.add("active"), list.appendChild(r));
+      }
+      list.appendChild(row("add", translate("accounts.add"), translate("settings.accountDetail"), "+"));
+    }
+    return (
+      page.add(
+        createElement("p", {
+          class: "login-hint",
+          text: translate("accounts.hint"),
+        }),
+      ),
+      page.add(list),
+      list.addEventListener("focus-activate", (ev) => {
+        let r = ev.target.closest(".settings-row");
+        if (!r) return;
+        if ("add" === r.__key) return void navigateRoot("welcome", { fresh: !0 });
+        r.__account &&
+          showToast(
+            translate(switchAccount(r.__account) ? "accounts.switching" : "accounts.already"),
+          );
+      }),
+      {
+        mount(t) {
+          (t.appendChild(page.node), render());
+        },
+        unmount() {
+          clearChildren(page.node);
+        },
+        initialFocus: () =>
+          list.querySelector(".settings-row.active") || list.querySelector(".settings-row"),
+        onKey(k) {
+          if (k !== KEY_YELLOW && k !== KEY_BLUE) return !1;
+          let f = focusedElement(),
+            a = f && f.__account;
+          if (!a) return !1;
+          if (a.id === currentAccountId())
+            return (showToast(translate("accounts.cantRemoveActive")), !0);
+          writeAccounts(readAccounts().filter((x) => x.id !== a.id));
+          try {
+            for (let key of ACCOUNT_SCOPED_KEYS) localStorage.removeItem("iptv:acct:" + a.id + ":" + key);
+          } catch (e) {}
+          return (
+            render(),
+            ensureFocus(list.querySelector(".settings-row")),
+            showToast(translate("accounts.removed")),
+            !0
+          );
+        },
+      }
+    );
+  }
   function jr() {
     let e = createPage({
         title: translate("settings.title"),
@@ -5870,6 +6122,18 @@ import {
       let e = settings();
       (t.appendChild(
         n(
+          "account",
+          translate("settings.account"),
+          readCredentials() && readCredentials().username
+            ? readCredentials().url
+            : translate("settings.accountDetail"),
+          readCredentials() && readCredentials().username
+            ? readCredentials().username
+            : translate("welcome.signIn"),
+        ),
+      ),
+        t.appendChild(
+        n(
           "language",
           translate("settings.language"),
           translate("settings.languageDetail"),
@@ -5884,7 +6148,9 @@ import {
             e.preferLowerBitrate ? translate("settings.on") : translate("settings.off"),
           ),
         ),
-        t.appendChild(
+        // (Not offered on Samsung: it always uses HLS, see liveStreamFormat.)
+        window.tizen ||
+          t.appendChild(
           n(
             "liveFormat",
             "Live stream format",
@@ -5951,9 +6217,20 @@ import {
                   if (__q) __q.textContent = translate(NAV_ITEMS[__i].key);
                 }
               })(e[(e.indexOf(currentLanguage()) + 1) % e.length]),
-              void navigateRoot("settings", {})
+              void (navigateRoot("settings", {}),
+              // The screen is rebuilt in the new language: stay on the Language row rather
+              // than landing on the first row (Account).
+              (function () {
+                let r = Array.prototype.filter.call(
+                  document.querySelectorAll(".settings-row"),
+                  (x) => "language" === x.__key,
+                )[0];
+                r && focusElement(r, { exact: !0 });
+              })())
             );
           }
+          case "account":
+            return void navigateRoot("account", {});
           case "preferLowerBitrate":
             saveSettings({
               preferLowerBitrate: !n.preferLowerBitrate,
@@ -6341,7 +6618,7 @@ import {
   var lastDirKey = 0,
     lastDirAt = 0;
   function zr() {
-    applyDocumentLanguage();
+    (seedPresetAccounts(), registerTvKeys(), applyDocumentLanguage());
     let e = (function (e, t) {
       return (t || document).querySelector(e);
     })("#app");
@@ -6373,6 +6650,7 @@ import {
       registerRoute("search", Dr),
       registerRoute("settings", jr),
       registerRoute("freetv", Kr),
+      registerRoute("account", accountsScreen),
       document.addEventListener("focus-moved", s),
       // Magic Remote pointer: focus follows the pointer and a click is OK. Only real
       // movement counts - Chromium re-sends a mousemove at the same spot when content
@@ -6414,7 +6692,7 @@ import {
           }));
       })(),
       document.addEventListener("keydown", (e) => {
-        let n = e.keyCode,
+        let n = normalizeKey(e.keyCode),
           at = Date.now();
         lastInputAt = at;
         // One press, one action: the same key again inside 50 ms is the remote echoing

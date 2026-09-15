@@ -12,8 +12,8 @@
 
 import { sleep } from "../lib.mjs";
 
-const RAIL = ["continue", "favorites", "search", "home", "live", "movies", "series", "settings", "freetv"];
-const KNOWN_ROUTES = new Set(["welcome", "home", "player", "details", "live", "movies", "series", "favorites", "continue", "search", "settings", "freetv"]);
+const RAIL = ["continue", "favorites", "search", "home", "live", "movies", "series", "settings", "freetv", "account"];
+const KNOWN_ROUTES = new Set(["welcome", "home", "player", "details", "live", "movies", "series", "favorites", "continue", "search", "settings", "freetv", "account"]);
 
 let MESSAGES = null;
 try {
@@ -192,7 +192,8 @@ function monkey(seed, count, config) {
         if (rand() < 0.03) gap = 2500; // let loads land now and then
         let before = await st(app);
         // Keep the account signed in and the caches warm.
-        if (k === "ok" && (before.key === "signOut" || before.key === "clearCache")) k = "down";
+        // OK on the Accounts screen switches account, which restarts the app: step over it.
+        if (k === "ok" && (before.key === "signOut" || before.key === "clearCache" || before.route === "account")) k = "down";
         // OK on a keyboard language button drops focus (covered by N33); step over it so
         // the monkey can look for other bugs.
         if (k === "ok" && /kb-lang/.test(before.cls || "")) k = "down";
@@ -628,6 +629,11 @@ export default [
       await railTo(app, expect, "settings");
       await app.key("right", 800);
       let s = await st(app);
+      // Settings starts with the Account row; Language is the one below it.
+      if (s.key === "account") {
+        await app.key("down", 300);
+        s = await st(app);
+      }
       expect.eq(s.key, "language", "Right on Settings focuses the language row");
       let order = ["ar", "es", "fr", "tr", "de", "en"];
       for (let code of order) {
@@ -636,6 +642,10 @@ export default [
           await toRail(app, expect);
           await railTo(app, expect, "settings");
           await app.key("right", 800);
+          s = await st(app);
+        }
+        if (s.key === "account") {
+          await app.key("down", 300);
           s = await st(app);
         }
         expect.eq(s.key, "language", "focus on language row before OK");
@@ -1190,7 +1200,8 @@ export default [
         if (!rows) rows = await app.eval("Array.prototype.map.call(document.querySelectorAll('.settings-row'), function(n){ return n.__key; })");
         if (i >= rows.length) break;
         let key = rows[i];
-        if (key === "signOut" || key === "clearCache") continue;
+        // (Account opens its own screen; covered by 70-account.)
+        if (key === "signOut" || key === "clearCache" || key === "account") continue;
         // Settings remembers the row used last, so count from wherever Right landed.
         let at = rows.indexOf(s.key);
         for (let d = at < 0 ? 0 : at; d < i; d++) s = await press(app, expect, "down", 120);

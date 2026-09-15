@@ -25,6 +25,26 @@ async function opens(app) {
 
 export default [
   {
+    name: "on a slow portal the teaser starts with the first title, not after the whole list",
+    config: { faults: { get_vod_info: { latencyMs: 1500 } } },
+    async run({ open, expect, note }) {
+      let app = await open({ ...ONE, settle: 0 });
+      let started = null;
+      for (let waited = 0; waited <= 20000; waited += 500) {
+        let v = await heroVideo(app);
+        if (v && v.src && v.t > 0) {
+          started = waited;
+          break;
+        }
+        await app.tick(500);
+      }
+      let titles = await app.eval("document.querySelectorAll('.hero-dot').length");
+      note.push(`teaser playing ${started} ms (virtual) after boot, with ${titles} title(s) loaded so far`);
+      expect(started !== null, "teaser never started while the list was still loading");
+      expect(titles < 8, "the teaser should not have waited for all eight titles");
+    },
+  },
+  {
     name: "teaser plays on a single-connection account and moves on after about 30 s",
     async run({ open, expect, note }) {
       let app = await open(ONE);
