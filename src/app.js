@@ -59,6 +59,7 @@ import {
   KEY_ESCAPE,
   KEY_FORWARD,
   KEY_GREEN,
+  KEY_RED,
   KEY_LEFT,
   KEY_OK,
   KEY_PAUSE,
@@ -274,11 +275,16 @@ import {
       "iptv:preferences",
       "iptv:maxConnections",
       "iptv:providerLingers",
+      "iptv:history",
     ];
   function accountId(kind, creds) {
     return "free" === kind
       ? "free"
-      : kind + "|" + String((creds && creds.url) || "") + "|" + String((creds && creds.username) || "");
+      : kind +
+          "|" +
+          String((creds && creds.url) || "") +
+          "|" +
+          String((creds && creds.username) || "");
   }
   function readAccounts() {
     try {
@@ -343,7 +349,15 @@ import {
             username: String(a.username).trim(),
             password: String(a.password || "").trim(),
           };
-          return Object.assign({ id: accountId("xtream", creds), kind: "xtream", label: a.label || "", at: Date.now() - n }, creds);
+          return Object.assign(
+            {
+              id: accountId("xtream", creds),
+              kind: "xtream",
+              label: a.label || "",
+              at: Date.now() - n,
+            },
+            creds,
+          );
         });
       if (!accts.length) return;
       writeAccounts(accts);
@@ -352,7 +366,11 @@ import {
         (localStorage.setItem(SOURCE_KIND_KEY, "xtream"),
         localStorage.setItem(
           CREDENTIALS_KEY,
-          JSON.stringify({ url: accts[0].url, username: accts[0].username, password: accts[0].password }),
+          JSON.stringify({
+            url: accts[0].url,
+            username: accts[0].username,
+            password: accts[0].password,
+          }),
         ),
         (credentialsCache = null),
         (sourceKindCache = null));
@@ -392,6 +410,7 @@ import {
       nextEpisodePromptSeconds: 60,
       heroTeaser: !0,
       heroTeaserSound: !0,
+      seekThumbnails: !0,
     },
     settingsCache = null;
   function settings() {
@@ -430,7 +449,9 @@ import {
   }
   /** An empty list may be a provider hiccup, not an empty catalogue: keep it briefly. */
   function cacheTtl(value, ttl) {
-    return Array.isArray(value) && !value.length ? Math.min(ttl || FIVE_MINUTES_MS, FIVE_MINUTES_MS) : ttl;
+    return Array.isArray(value) && !value.length
+      ? Math.min(ttl || FIVE_MINUTES_MS, FIVE_MINUTES_MS)
+      : ttl;
   }
   function se(e, t, n) {
     let i,
@@ -587,7 +608,9 @@ import {
           return JSON.parse(s);
         } catch (t) {
           throw new Error(
-            /^\s*<(!doctype|html|head|body|script|meta|\?xml)/i.test(s) ? "__NOAPI__" : "Bad JSON from " + (e || "auth"),
+            /^\s*<(!doctype|html|head|body|script|meta|\?xml)/i.test(s)
+              ? "__NOAPI__"
+              : "Bad JSON from " + (e || "auth"),
           );
         }
       } finally {
@@ -646,11 +669,13 @@ import {
         ? translate("welcome.inactive")
         : m.indexOf("__NOAPI__") >= 0
           ? translate("welcome.notPortal")
-          : /^(That URL is not an M3U playlist|That playlist has no channels|Playlist download failed)/.test(m)
+          : /^(That URL is not an M3U playlist|That playlist has no channels|Playlist download failed)/.test(
+                m,
+              )
             ? m
-          : (err && "AbortError" === err.name) || /abort|failed to fetch|network/i.test(m)
-            ? translate("welcome.noAnswer")
-            : translate("welcome.serverError");
+            : (err && "AbortError" === err.name) || /abort|failed to fetch|network/i.test(m)
+              ? translate("welcome.noAnswer")
+              : translate("welcome.serverError");
   }
   var CONNECTION_LIMIT_KEY = "iptv:maxConnections",
     // How long a released teaser or preview stream may still count against the
@@ -1727,45 +1752,71 @@ import {
     RAIL_ICON_BODIES = {
       continue:
         '<path d="M20 12a8 8 0 1 1-2.34-5.66"%R/><path d="M20 3.8v4.7h-4.7"%R/>' +
-        '<path d="M10 8.6v6.8l5.4-3.4z"' + RAIL_WHITE + "/>",
+        '<path d="M10 8.6v6.8l5.4-3.4z"' +
+        RAIL_WHITE +
+        "/>",
+      history:
+        '<circle cx="12" cy="12" r="8.6"%R/><path d="M12 7v5.2l3.4 2"' +
+        RAIL_WHITE_LINE +
+        '"2.2"/>',
       favorites:
         '<path d="M12 3.2l2.7 5.5 6 .9-4.35 4.25 1.03 6L12 17.02l-5.38 2.83 1.03-6L3.3 9.6l6-.9z"%R/>' +
-        '<circle cx="12" cy="12.3" r="1.9"' + RAIL_WHITE + "/>",
+        '<circle cx="12" cy="12.3" r="1.9"' +
+        RAIL_WHITE +
+        "/>",
       search:
         '<circle cx="10.5" cy="10.5" r="6.5"%R/>' +
-        '<path d="M15.6 15.6L20.8 20.8"' + RAIL_WHITE_LINE + '"2.6"/>',
+        '<path d="M15.6 15.6L20.8 20.8"' +
+        RAIL_WHITE_LINE +
+        '"2.6"/>',
       home:
         '<path d="M3.5 11L12 3.5l8.5 7.5v9a1 1 0 0 1-1 1h-15a1 1 0 0 1-1-1z"%R/>' +
-        '<path d="M10.2 12.4v5.6l4.6-2.8z"' + RAIL_WHITE + "/>",
+        '<path d="M10.2 12.4v5.6l4.6-2.8z"' +
+        RAIL_WHITE +
+        "/>",
       live:
         '<rect x="2.5" y="7" width="19" height="13" rx="2.2"%R/><path d="M8 2.8l4 4 4-4"%R/>' +
-        '<circle cx="12" cy="13.5" r="2.5"' + RAIL_WHITE + "/>",
+        '<circle cx="12" cy="13.5" r="2.5"' +
+        RAIL_WHITE +
+        "/>",
       movies:
         '<rect x="3" y="10" width="18" height="10.5" rx="1.6"%R/>' +
         '<path d="M3 10L20.3 6.7 19.6 3.2 2.4 6.5z"%R/>' +
-        '<path d="M7.4 5.6l2.2 3.2M12.8 4.6l2.2 3.2"' + RAIL_WHITE_LINE + '"1.7"/>' +
-        '<path d="M10.4 12.6v5.3l4.3-2.65z"' + RAIL_WHITE + "/>",
+        '<path d="M7.4 5.6l2.2 3.2M12.8 4.6l2.2 3.2"' +
+        RAIL_WHITE_LINE +
+        '"1.7"/>' +
+        '<path d="M10.4 12.6v5.3l4.3-2.65z"' +
+        RAIL_WHITE +
+        "/>",
       series:
         '<rect x="2.5" y="8" width="15.5" height="12" rx="2"%R/>' +
         '<path d="M6.5 4.5h13a2 2 0 0 1 2 2v9.5"%R/>' +
-        '<path d="M8.4 11v6l4.9-3z"' + RAIL_WHITE + "/>",
+        '<path d="M8.4 11v6l4.9-3z"' +
+        RAIL_WHITE +
+        "/>",
       settings:
         '<circle cx="12" cy="12" r="6"%R/>' +
         '<path d="M12 1.8v3M12 19.2v3M1.8 12h3M19.2 12h3M4.8 4.8l2.1 2.1M17.1 17.1l2.1 2.1M4.8 19.2l2.1-2.1M17.1 6.9l2.1-2.1"%R/>' +
-        '<circle cx="12" cy="12" r="2.4"' + RAIL_WHITE + "/>",
+        '<circle cx="12" cy="12" r="2.4"' +
+        RAIL_WHITE +
+        "/>",
       freetv:
         '<circle cx="12" cy="12" r="9"%R/>' +
         '<path d="M3.4 12h17.2M12 3c2.5 2.6 3.7 5.6 3.7 9s-1.2 6.4-3.7 9c-2.5-2.6-3.7-5.6-3.7-9S9.5 5.6 12 3z"' +
-        RAIL_WHITE_LINE + '"1.6"/>',
+        RAIL_WHITE_LINE +
+        '"1.6"/>',
       account:
         '<circle cx="12" cy="8.2" r="4.2"%R/><path d="M4 20.8c.9-4.1 4-6.6 8-6.6s7.1 2.5 8 6.6"%R/>' +
-        '<path d="M10.7 6.6v3.2l2.8-1.6z"' + RAIL_WHITE + "/>",
+        '<path d="M10.7 6.6v3.2l2.8-1.6z"' +
+        RAIL_WHITE +
+        "/>",
     };
   function railIconSvg(id) {
     let grad = "rail-grad-" + id;
     return (
       '<svg viewBox="0 0 24 24" width="32" height="32" aria-hidden="true">' +
-      '<defs><linearGradient id="' + grad +
+      '<defs><linearGradient id="' +
+      grad +
       '" gradientUnits="userSpaceOnUse" x1="0" y1="2" x2="0" y2="22">' +
       '<stop offset="0" stop-color="#ff4d4d"/><stop offset="1" stop-color="#c40810"/>' +
       "</linearGradient></defs>" +
@@ -1777,6 +1828,10 @@ import {
     {
       id: "continue",
       key: "nav.continue",
+    },
+    {
+      id: "history",
+      key: "nav.history",
     },
     {
       id: "favorites",
@@ -2020,6 +2075,10 @@ import {
       } catch (e) {
         t = [];
       }
+      // The chips are about to be rebuilt: if one had focus, keep focus at the same place.
+      let fe = focusedElement(),
+        had = !!fe && u.contains(fe),
+        at = had ? Array.prototype.indexOf.call(u.children, fe) : -1;
       if ((clearChildren(u), t.length)) {
         for (let e of t.slice(0, 6)) {
           let t = "string" == typeof e ? e : e.text,
@@ -2035,6 +2094,13 @@ import {
         }
         u.hidden = !1;
       } else u.hidden = !0;
+      had &&
+        focusElement(
+          u.children[Math.min(at, u.children.length - 1)] || d.querySelector(".kb-key"),
+          {
+            exact: !0,
+          },
+        );
     }
     function g(e) {
       o && ((o.value = o.value + e), w());
@@ -2694,6 +2760,52 @@ import {
   function progressFor(e, t) {
     return channelHealth()[di(e, t)] || null;
   }
+  // Watch history, the way YouTube keeps it: everything that actually played - films,
+  // episodes and channels, finished or not - newest first, one entry per title (watching
+  // it again moves it to the top). Separate from Continue Watching, which forgets a title
+  // once it is finished.
+  var HISTORY_KEY = "iptv:history",
+    HISTORY_LIMIT = 300,
+    historyCache = null;
+  function watchHistory() {
+    if (historyCache) return historyCache;
+    historyCache = [];
+    try {
+      let list = JSON.parse(localStorage.getItem(HISTORY_KEY) || "[]");
+      Array.isArray(list) && (historyCache = list.filter((x) => x && x.kind && x.id));
+    } catch (e) {}
+    return historyCache;
+  }
+  function saveHistory() {
+    try {
+      localStorage.setItem(HISTORY_KEY, JSON.stringify(watchHistory()));
+    } catch (e) {}
+  }
+  /** Note that `item` played (moving it to the top), or update where it got to. */
+  function recordHistory(item, position, duration, moveToTop) {
+    let list = watchHistory(),
+      at = list.findIndex((x) => x.kind === item.kind && String(x.id) === String(item.id)),
+      old = at >= 0 ? list[at] : null;
+    if (!old && !moveToTop) return;
+    let entry = Object.assign({}, old || {}, item, {
+      watchedAt: moveToTop || !old ? Date.now() : old.watchedAt,
+    });
+    (null != position && position > 0 && (entry.position = Math.floor(position)),
+      duration > 0 && (entry.duration = Math.floor(duration)));
+    (at >= 0 && list.splice(at, 1),
+      moveToTop || !old ? list.unshift(entry) : list.splice(at, 0, entry),
+      list.length > HISTORY_LIMIT && (list.length = HISTORY_LIMIT),
+      saveHistory());
+  }
+  function removeFromHistory(kind, id) {
+    ((historyCache = watchHistory().filter(
+      (x) => !(x.kind === kind && String(x.id) === String(id)),
+    )),
+      saveHistory());
+  }
+  function clearHistory() {
+    ((historyCache = []), saveHistory());
+  }
   function fi(e) {
     let t = channelHealth(),
       n = Object.keys(t)
@@ -3136,10 +3248,19 @@ import {
       if (wait > 0) return void (C = setTimeout(A, wait));
       ((v.__seeked = !1), (v.src = e.streamUrl));
       let t = v.play();
-      (t && t.catch && t.catch(() => {}),
+      // A muted retry when the TV refuses to autoplay with sound.
+      (t &&
+        t.catch &&
+        t.catch(() => {
+          if (v.muted) return;
+          v.muted = !0;
+          let again = v.play();
+          again && again.catch && again.catch(() => {});
+        }),
+        // IPTV files often take 8-12 s to start: 7 s skipped every title before it began.
         (C = setTimeout(() => {
           E();
-        }, 7e3)));
+        }, 15e3)));
     }
     function E() {
       S || !b.length || (L((w + 1) % b.length), s && _ && A());
@@ -3242,6 +3363,18 @@ import {
         n && (e.target === f ? t(n) : e.target === p && r(n));
       }),
       v.addEventListener("playing", N),
+      // After the jump to 30 %, some TVs (webOS) never fire a second "playing": the preview
+      // then played behind the artwork, unseen. Show it as soon as the jump has landed.
+      v.addEventListener("seeked", () => {
+        v.__seeked && !v.paused && !y.classList.contains("hero-playing") && N();
+      }),
+      v.addEventListener("timeupdate", () => {
+        v.__seeked &&
+          !v.paused &&
+          v.currentTime > 0 &&
+          !y.classList.contains("hero-playing") &&
+          N();
+      }),
       v.addEventListener("error", () => {
         if (!v.getAttribute("src")) return;
         ++teaserFailures < 2 ? E() : (I(), R());
@@ -3259,9 +3392,7 @@ import {
           _ !== e &&
             ((_ = e),
             s &&
-              (_
-                ? ((teaserFailures = 0), x && (clearInterval(x), (x = null)), A())
-                : (I(), R())));
+              (_ ? ((teaserFailures = 0), x && (clearInterval(x), (x = null)), A()) : (I(), R())));
         },
         stop() {
           ((S = !0), x && (clearInterval(x), (x = null)), I(), v.removeEventListener("playing", N));
@@ -3617,6 +3748,53 @@ import {
       r = t % 60,
       s = (e) => (e < 10 ? "0" + e : String(e));
     return n > 0 ? n + ":" + s(i) + ":" + s(r) : s(i) + ":" + s(r);
+  }
+  /** Every episode of a series in watching order, across seasons (empty seasons skipped). */
+  function allEpisodes(info) {
+    let list = [];
+    for (let season of (info && info.seasons) || []) list.push.apply(list, season.episodes || []);
+    return list;
+  }
+  function episodeLabel(ep) {
+    return "S" + ep.season + "E" + ep.episodeNumber + (ep.title ? " · " + ep.title : "");
+  }
+  /** The player's route params for one episode of a series. */
+  function episodeRoute(ep, episodes, series, resumeAt) {
+    return {
+      item: {
+        kind: "episode",
+        id: ep.id,
+        name: (series.name || "") + " · S" + ep.season + "E" + ep.episodeNumber,
+        poster: ep.still || series.poster || null,
+        ext: ep.ext,
+      },
+      episodes: episodes,
+      episodeIndex: episodes.indexOf(ep),
+      allSeasons: !0,
+      seriesId: series.id,
+      seriesName: series.name || "",
+      season: ep.season,
+      episodeNumber: ep.episodeNumber,
+      resumeAt: resumeAt || 0,
+    };
+  }
+  // Netflix-style scrubbing: a tap moves 10 s; holding the key speeds up the longer it is
+  // held, so a long jump takes a couple of seconds of holding, not dozens of presses.
+  function seekStep(heldMs, duration) {
+    let step =
+      heldMs < 1200 ? 10 : heldMs < 2500 ? 20 : heldMs < 4e3 ? 30 : heldMs < 6e3 ? 60 : 120;
+    // A short file does not need 2-minute jumps.
+    return duration > 0 ? Math.max(10, Math.min(step, Math.round(duration / 40))) : step;
+  }
+  /** Seek thumbnails need a second connection to the file; only with a plan that has one. */
+  function seekPreviewAllowed() {
+    if (!settings().seekThumbnails) return !1;
+    if (!Kt().singleConnection) return !0;
+    try {
+      return Number(localStorage.getItem(CONNECTION_LIMIT_KEY)) >= 2;
+    } catch (e) {
+      return !1;
+    }
   }
   function rr(e) {
     let t = e.channel || e.item,
@@ -4048,10 +4226,55 @@ import {
         class: "osd-button osd-button-wide focusable",
         text: translate("player.skipIntro"),
       }),
+      prevEp = createElement("div", {
+        class: "osd-button osd-button-wide focusable",
+        text: "⏮  " + translate("player.prevEpisode"),
+      }),
       O = createElement("div", {
         class: "osd-button osd-button-wide focusable",
-        text: translate("player.nextEpisode"),
+        text: translate("player.nextEpisode") + "  ⏭",
       }),
+      epBtn = createElement("div", {
+        class: "osd-button osd-button-wide focusable",
+        text: "☰  " + translate("player.episodes"),
+      }),
+      epList = createElement("div", {
+        class: "episodes-panel-list",
+      }),
+      epPanel = createElement(
+        "div",
+        {
+          class: "quality-panel episodes-panel",
+          hidden: "hidden",
+          "data-focus-memory": "player-episodes",
+          "data-focus-contain": "vertical",
+        },
+        [
+          createElement("div", {
+            class: "quality-title",
+            dir: "auto",
+            text: e.seriesName || translate("player.episodes"),
+          }),
+          epList,
+        ],
+      ),
+      thumbVideo = null,
+      thumbTimer = null,
+      thumbImg = createElement("div", {
+        class: "osd-thumb-frame",
+      }),
+      thumbTime = createElement("div", {
+        class: "osd-thumb-time",
+        text: "",
+      }),
+      thumb = createElement(
+        "div",
+        {
+          class: "osd-thumb",
+          hidden: "hidden",
+        },
+        [thumbImg, thumbTime],
+      ),
       F = createElement("div", {
         class: "osd-button osd-button-wide focusable",
         text: translate("player.fit"),
@@ -4062,7 +4285,7 @@ import {
           class: "osd-controls",
           "data-focus-memory": "osd",
         },
-        [_, T, n ? null : E, A ? O : null, F, L],
+        [_, T, n ? null : E, n ? null : prevEp, n ? null : O, n ? null : epBtn, F, L],
       ),
       D = createElement(
         "div",
@@ -4095,6 +4318,7 @@ import {
         },
         [C, k, S],
       ),
+      __thumbBar = k.appendChild(thumb),
       K = createElement(
         "div",
         {
@@ -4168,10 +4392,7 @@ import {
           if (i !== !D.hidden)
             if (i) {
               let e = I[N + 1];
-              ((j.textContent =
-                "S" + e.season + "E" + e.episodeNumber + (e.title ? " · " + e.title : "")),
-                (D.hidden = !1),
-                focusElement(U));
+              ((j.textContent = episodeLabel(e)), (D.hidden = !1), focusElement(U));
             } else ((D.hidden = !0), focusedElement() === U && focusElement(_));
         })());
     }
@@ -4185,23 +4406,27 @@ import {
     function $(t) {
       if (n || !a.duration) return;
       let i = Date.now();
-      ((h = i - f < 400 ? Math.min(tr.length - 1, h + 1) : 0), (f = i));
+      // h: when this run of presses (or a held key's repeats) began.
+      ((h = i - f < 450 && h ? h : i), (f = i));
       let r = null === d ? a.position : d,
-        s = Math.max(0, Math.min(a.duration - 1, r + t * tr[h]));
+        s = Math.max(0, Math.min(a.duration - 1, r + t * seekStep(i - h, a.duration)));
       ((d = s),
         G(s, a.duration),
         k.classList.add("seeking"),
+        showThumb(s),
         V(),
         u && clearTimeout(u),
+        // Long enough after the last press to look at the picture and press again.
         (u = setTimeout(() => {
           let t = d;
           ((d = null),
             (h = 0),
             k.classList.remove("seeking"),
+            hideThumb(),
             a.seekTo(t),
             (a.__floor = 0),
             e.seriesId && t > a.position && (Hi(e.seriesId, t), Q()));
-        }, 450)));
+        }, 800)));
     }
     function Q() {
       let t = Xi(e.seriesId);
@@ -4226,26 +4451,128 @@ import {
         s.classList.add("fit-" + t),
         (F.textContent = Zi(t)));
     }
-    function te() {
-      if (!A) return;
-      let n = I[N + 1];
+    // Go to the episode `step` places away (1 next, -1 previous), across seasons. A
+    // previous episode resumes where it was left; the next one starts from the top.
+    function te(step) {
+      let to = N + (step || 1);
+      if (!I || to < 0 || to >= I.length) return;
+      let n = I[to],
+        saved = step < 0 ? progressFor("episode", n.id) : null;
       (ne(),
-        replaceRoute("player", {
-          item: {
-            kind: "episode",
-            id: n.id,
-            name: (e.seriesName || "") + " · S" + n.season + "E" + n.episodeNumber,
-            poster: n.still || t.poster,
-            ext: n.ext,
-          },
-          episodes: I,
-          episodeIndex: N + 1,
-          seriesId: e.seriesId,
-          seriesName: e.seriesName,
-          season: n.season,
-          episodeNumber: n.episodeNumber,
-          resumeAt: 0,
-        }));
+        replaceRoute(
+          "player",
+          episodeRoute(
+            n,
+            I,
+            { id: e.seriesId, name: e.seriesName, poster: t.poster },
+            saved ? saved.position : 0,
+          ),
+        ));
+    }
+    // Which episode buttons apply, now that the episode list may have arrived.
+    function syncEpisodeButtons() {
+      let has = !!(I && N >= 0);
+      ((A = has && N < I.length - 1),
+        (prevEp.hidden = !(has && N > 0)),
+        (O.hidden = !A),
+        (epBtn.hidden = !(has && I.length > 1)));
+    }
+    // Opened from Continue Watching, History or Home, an episode arrives with no list (or
+    // only its own season): fetch the series so Previous/Next work across all seasons.
+    function loadAllEpisodes() {
+      if (n || !e.seriesId || e.allSeasons) return;
+      runAsync(null, null, function* () {
+        let info = yield activeAdapter().seriesInfo(e.seriesId);
+        if (p) return;
+        let list = allEpisodes(info),
+          at = list.findIndex((x) => String(x.id) === String(t.id));
+        at >= 0 && ((I = list), (N = at), syncEpisodeButtons());
+      }).catch(() => {});
+    }
+    function openEpisodes() {
+      if (!I) return;
+      clearChildren(epList);
+      let current = null;
+      I.forEach((ep, i) => {
+        let watched = progressFor("episode", ep.id),
+          row = createElement("div", {
+            class: "quality-option episode-option focusable" + (i === N ? " active" : ""),
+            dir: "auto",
+            text:
+              (i === N ? "▶  " : "") +
+              episodeLabel(ep) +
+              (watched ? "   ·   " + ir(watched.position) : ""),
+          });
+        ((row.__episodeIndex = i), epList.appendChild(row), i === N && (current = row));
+      });
+      ((epList.__scroll = 0),
+        (epList.style.transform = "translate3d(0,0,0)"),
+        (epPanel.hidden = !1),
+        W(),
+        focusElement(current || epList.firstChild, { exact: !0 }));
+    }
+    function closeEpisodes() {
+      ((epPanel.hidden = !0), V(), focusElement(epBtn, { exact: !0 }));
+    }
+    epPanel.addEventListener("focus-enter", (ev) => {
+      // Keep the focused episode inside the panel's window.
+      let row = ev.target,
+        top = row.offsetTop,
+        view = 520,
+        cur = epList.__scroll || 0,
+        next = cur;
+      (top < cur
+        ? (next = top)
+        : top + row.offsetHeight > cur + view && (next = top + row.offsetHeight - view),
+        next !== cur &&
+          ((epList.__scroll = next),
+          (epList.style.transform = "translate3d(0," + -next + "px,0)")));
+    });
+    // ---- Seek thumbnails: a second, muted copy of the file that jumps to where the viewer
+    // is scrubbing, so they can see where they will land before letting go.
+    function showThumb(pos) {
+      let dur = a.duration;
+      if (!dur) return;
+      ((thumb.hidden = !1),
+        (thumb.style.left = (100 * Math.min(1, pos / dur)).toFixed(2) + "%"),
+        (thumbTime.textContent = ir(pos)));
+      if (!seekPreviewAllowed() || thumb.__failed || !a.current) return;
+      thumbTimer && clearTimeout(thumbTimer);
+      thumbTimer = setTimeout(() => {
+        thumbTimer = null;
+        if (p) return;
+        if (!thumbVideo) {
+          thumbVideo = createElement("video", {
+            class: "osd-thumb-video",
+          });
+          ((thumbVideo.muted = !0), (thumbVideo.preload = "auto"));
+          thumbVideo.setAttribute("playsinline", "");
+          thumbVideo.addEventListener("seeked", () => thumb.classList.add("has-frame"));
+          // A file the TV cannot open twice: drop the pictures, keep the time.
+          thumbVideo.addEventListener("error", () => ((thumb.__failed = !0), dropThumbVideo()));
+          thumbImg.appendChild(thumbVideo);
+          try {
+            thumbVideo.src = ie(a.current);
+          } catch (x) {
+            return void ((thumb.__failed = !0), dropThumbVideo());
+          }
+        }
+        try {
+          thumbVideo.currentTime = pos;
+        } catch (x) {}
+      }, 90);
+    }
+    function hideThumb() {
+      ((thumb.hidden = !0), thumbTimer && (clearTimeout(thumbTimer), (thumbTimer = null)));
+    }
+    function dropThumbVideo() {
+      if (!thumbVideo) return;
+      try {
+        (thumbVideo.removeAttribute("src"), thumbVideo.load());
+      } catch (x) {}
+      (thumbVideo.parentNode && thumbVideo.parentNode.removeChild(thumbVideo),
+        (thumbVideo = null),
+        thumb.classList.remove("has-frame"));
     }
     function ne() {
       // Nothing has played yet, or the resume seek is still pending: the position is the
@@ -4261,6 +4588,7 @@ import {
         a.position < (a.__floor || 0)
       )
         return;
+      n || recordHistory(__historyItem(), a.position, Math.max(a.__dur || 0, a.duration || 0), !1);
       n ||
         mi(
           {
@@ -4358,6 +4686,7 @@ import {
         let now = Date.now();
         (now - (a.__lastProgress || 0) > 1500 && (a.__since = now),
           (a.__lastProgress = now),
+          a.__ok || __noteWatched(),
           (a.__ok = a.__ok || now),
           (a.__retrying = !1),
           (a.__noticeRetry = !1),
@@ -4397,7 +4726,7 @@ import {
         if (d > 0 && d < 90) return void __lr(__pos());
         if (d > 0 && q >= d - 3) {
           ne();
-          if (A) return void te();
+          if (A) return void te(1);
           try {
             if (e.seriesId)
               return void replaceRoute("details", {
@@ -4437,8 +4766,13 @@ import {
             }
             (Hi(e.seriesId, t), Q(), V());
           })();
-        else if (s === O || s === U) te();
-        else if (s === F)
+        else if (s === O || s === U) te(1);
+        else if (s === prevEp) te(-1);
+        else if (s === epBtn) openEpisodes();
+        else if (s.classList.contains("episode-option")) {
+          let to = s.__episodeIndex;
+          to === N ? closeEpisodes() : te(to - N);
+        } else if (s === F)
           !(function () {
             let e = Y(),
               t = Yi(e.kind, e.id);
@@ -4475,7 +4809,7 @@ import {
               l && (clearTimeout(l), (l = null)),
               focusElement(se.querySelector(".quality-option")));
           })();
-        else if (s.classList.contains("quality-option")) {
+        else if (s.classList.contains("quality-option") && s.__source) {
           let e = s.__source;
           ae();
           let t = re().filter((t) => t.id !== e.id);
@@ -4519,6 +4853,34 @@ import {
         }
       }, 600);
     }
+    // What this player is showing, as History keeps it.
+    function __historyItem() {
+      return n
+        ? {
+            kind: "live",
+            id: t.id,
+            name: t.name,
+            logo: t.logo || null,
+            categoryId: t.categoryId || null,
+            number: null != t.number ? t.number : null,
+          }
+        : {
+            kind: t.kind,
+            id: t.id,
+            name: t.name,
+            poster: t.poster || null,
+            ext: t.ext || null,
+            seriesId: e.seriesId || null,
+            seriesName: e.seriesName || null,
+            season: e.season || null,
+            episodeNumber: e.episodeNumber || null,
+          };
+    }
+    function __noteWatched() {
+      try {
+        recordHistory(__historyItem(), n ? 0 : a.position, n ? 0 : a.duration, !0);
+      } catch (x) {}
+    }
     function __pos() {
       // Before anything has played, the place to retry from is where the viewer left
       // off, not the start of the file.
@@ -4532,6 +4894,9 @@ import {
         (((e) => {
           B.appendChild(e);
         })(se),
+          B.appendChild(epPanel),
+          syncEpisodeButtons(),
+          loadAllEpisodes(),
           t.appendChild(B),
           H(),
           ee(),
@@ -4557,11 +4922,18 @@ import {
           o && clearInterval(o),
           u && clearTimeout(u),
           c && clearInterval(c),
+          hideThumb(),
+          dropThumbVideo(),
           a.destroy(),
           clearChildren(B));
       },
       initialFocus: () => _,
       onKey: function (i) {
+        // The episode list: Up/Down move inside it, Back closes it, Left/Right do nothing.
+        if (!epPanel.hidden)
+          return isBackKey(i)
+            ? (closeEpisodes(), !0)
+            : i === KEY_LEFT || i === KEY_RIGHT || i === KEY_CHANNEL_UP || i === KEY_CHANNEL_DOWN;
         if (isBackKey(i))
           return se.hidden
             ? K.classList.contains("visible")
@@ -4597,6 +4969,9 @@ import {
           );
         }
         if (i === KEY_STOP) return (ne(), goBack(), !0);
+        // Channel +/- on the remote: next / previous episode.
+        if (!n && I && (i === KEY_CHANNEL_UP || i === KEY_CHANNEL_DOWN))
+          return (te(i === KEY_CHANNEL_UP ? 1 : -1), !0);
         if (n && e.siblings && e.siblings.length > 1) {
           let n = 0;
           if (
@@ -4619,7 +4994,7 @@ import {
             );
           }
         }
-        return !D.hidden && isSelectKey(i) ? (te(), !0) : !r && (V(), focusElement(_), !0);
+        return !D.hidden && isSelectKey(i) ? (te(1), !0) : !r && (V(), focusElement(_), !0);
       },
     };
   }
@@ -4726,9 +5101,17 @@ import {
           t.genre || null,
           t.rating ? "★ " + t.rating.toFixed(1) : null,
         ].filter(Boolean);
+        // Open on the season being watched, and say on the button which episode resumes.
+        let last = lastWatched();
+        if (last) {
+          let si = t.seasons.findIndex((x) => x.episodes.indexOf(last) >= 0);
+          si >= 0 && (o = si);
+        }
         ((m.textContent = n.join("   ·   ")),
           (h.textContent = t.plot || ""),
-          (f.textContent = "▶  Play"),
+          (f.textContent = last
+            ? "▶  Resume  ·  S" + last.season + "E" + last.episodeNumber
+            : "▶  Play"),
           x(),
           _(),
           focusInto(s, f));
@@ -4815,26 +5198,32 @@ import {
       );
       return ((r.__episode = e), r);
     }
+    // The player gets every episode of every season, so Previous / Next carry on across
+    // the end of a season instead of stopping there.
     function L(t) {
       let n = progressFor("episode", t.id),
-        i = l.seasons.filter((e) => e.number === t.season)[0],
-        r = i ? i.episodes : [t];
-      pushRoute("player", {
-        item: {
-          kind: "episode",
-          id: t.id,
-          name: (l ? l.name : "") + " · S" + t.season + "E" + t.episodeNumber,
-          poster: t.still || (l ? l.poster : null),
-          ext: t.ext,
-        },
-        episodes: r,
-        episodeIndex: r.indexOf(t),
-        seriesId: e.id,
-        seriesName: l ? l.name : "",
-        season: t.season,
-        episodeNumber: t.episodeNumber,
-        resumeAt: n ? n.position : 0,
-      });
+        r = allEpisodes(l);
+      (r.indexOf(t) < 0 && (r = [t]),
+        pushRoute(
+          "player",
+          episodeRoute(
+            t,
+            r,
+            { id: e.id, name: l ? l.name : "", poster: l ? l.poster : null },
+            n ? n.position : 0,
+          ),
+        ));
+    }
+    /** The episode watched most recently, if any. */
+    function lastWatched() {
+      let best = null,
+        at = 0;
+      for (let season of (l && l.seasons) || [])
+        for (let ep of season.episodes) {
+          let p = progressFor("episode", ep.id);
+          p && p.updatedAt > at && ((at = p.updatedAt), (best = ep));
+        }
+      return best;
     }
     return (
       s.appendChild(y),
@@ -4844,13 +5233,7 @@ import {
           return void ("series" === e.kind
             ? (function () {
                 if (!l || !l.seasons.length) return;
-                let e = null,
-                  t = 0;
-                for (let n of l.seasons)
-                  for (let i of n.episodes) {
-                    let n = progressFor("episode", i.id);
-                    n && n.updatedAt > t && ((t = n.updatedAt), (e = i));
-                  }
+                let e = lastWatched();
                 // (A season can come back empty; start from the first episode that exists.)
                 let first = l.seasons.filter((s) => s.episodes.length)[0];
                 (e = e || (first && first.episodes[0])) && L(e);
@@ -5103,6 +5486,112 @@ import {
       key: hr(e.name),
     }));
   }
+  /** 4K / FHD / HD / SD for a title, from its own name or else its category's. */
+  function titleQuality(item) {
+    return (
+      qualityTagFor(item.name || "") ||
+      (item.categoryName && qualityTagFor(item.categoryName)) ||
+      null
+    );
+  }
+  /** The name as people would say it: no [tags], (notes) or quality markers. */
+  function displayTitle(name) {
+    let t = String(name || "")
+      .replace(/\[[^\]]*\]/g, " ")
+      .replace(/\([^)]*\)/g, " ")
+      .replace(
+        /(^|[\s_|:-])(4k|uhd|2160p?|fhd|1080p?|hd|720p?|sd|480p?|h\s?265|h\s?264|hevc|multi|vip)(?=[\s_|:-]|$)/gi,
+        " ",
+      )
+      .replace(/\s+/g, " ")
+      .replace(/^[\s|:_\-–—]+|[\s|:_\-–—]+$/g, "")
+      .trim();
+    return t || String(name || "").trim();
+  }
+  /**
+   * How "hot" a title is right now, from what the provider tells us: how recently it was
+   * added (or, for a series, got a new episode), its rating, and whether this TV has
+   * watched it. Used to put the likeliest titles first in predictions and results.
+   */
+  function trendScore(entry) {
+    if (null == entry.__trend) {
+      let it = entry.item,
+        score = 0,
+        at = it.added || it.lastModified;
+      if (at) {
+        let days = (Date.now() - at) / 864e5;
+        days >= 0 && (score += Math.max(0, 10 - days / 9));
+      }
+      (it.rating && (score += 0.6 * Math.min(10, it.rating)), (entry.__trend = score));
+    }
+    return entry.__trend + (watchedRecently()[entry.item.kind + ":" + entry.item.id] ? 4 : 0);
+  }
+  var watchedSetCache = null,
+    watchedSetAt = 0;
+  function watchedRecently() {
+    if (watchedSetCache && Date.now() - watchedSetAt < 6e4) return watchedSetCache;
+    let set = Object.create(null);
+    for (let h of watchHistory()) {
+      set[h.kind + ":" + h.id] = !0;
+      h.seriesId && (set["series:" + h.seriesId] = !0);
+    }
+    return ((watchedSetAt = Date.now()), (watchedSetCache = set));
+  }
+  /**
+   * Titles matching what has been typed, best first: every typed word must appear; a title
+   * that starts with the text beats one where a word starts with it, which beats one that
+   * only contains it; within each, the trendier title first.
+   */
+  function rankMatches(entries, query, limit) {
+    let q = hr(query);
+    if (!q) return [];
+    let words = q.split(" "),
+      buckets = [[], [], []];
+    for (let x of entries) {
+      let k = x.key,
+        ok = !0;
+      for (let w of words)
+        if (-1 === k.indexOf(w)) {
+          ok = !1;
+          break;
+        }
+      if (!ok) continue;
+      let at = k.indexOf(q);
+      buckets[0 === at ? 0 : at > 0 && " " === k.charAt(at - 1) ? 1 : 2].push(x);
+    }
+    let out = [];
+    for (let b of buckets) {
+      (b.sort((a, c) => trendScore(c) - trendScore(a)), out.push.apply(out, b));
+      if (limit && out.length >= limit) break;
+    }
+    return limit ? out.slice(0, limit) : out;
+  }
+  /** Predictions under the box: whole titles, one per title however many copies it has. */
+  function predictTitles(entries, query, limit) {
+    let seen = Object.create(null),
+      out = [];
+    for (let x of rankMatches(entries, query, 400)) {
+      let title = displayTitle(x.item.name),
+        k = hr(title);
+      if (seen[k]) continue;
+      if (((seen[k] = !0), out.push(title), out.length >= (limit || 6))) break;
+    }
+    return out;
+  }
+  /** What is new and highly rated on this provider: shown before anything is typed. */
+  function trendingTitles(entries, limit) {
+    let seen = Object.create(null),
+      out = [],
+      sorted = entries.filter((x) => x.item.added || x.item.lastModified || x.item.rating);
+    sorted.sort((a, c) => trendScore(c) - trendScore(a));
+    for (let x of sorted) {
+      let title = displayTitle(x.item.name),
+        k = hr(title);
+      if (seen[k]) continue;
+      if (((seen[k] = !0), out.push(title), out.length >= (limit || 8))) break;
+    }
+    return out;
+  }
   var pr = (e) => new Promise((t) => setTimeout(t, e));
   function gr(e, t) {
     return runAsync(this, null, function* () {
@@ -5111,7 +5600,11 @@ import {
       i.partial = !1;
       for (let e of n) {
         try {
-          i.push.apply(i, yield t(e.id));
+          let items = yield t(e.id);
+          // The category often carries the quality ("4K Movies", "Bein Sport [ HD ]"): keep
+          // its name with each title so a search result can say which copy it is.
+          for (let x of items) x.categoryName || (x.categoryName = e.name);
+          i.push.apply(i, items);
         } catch (e) {
           i.partial = !0;
         }
@@ -5206,7 +5699,7 @@ import {
       }),
       f = Jn({
         language: o,
-        suggest: (e) => (e ? (u ? Zn(u, e, 6) : []) : Xn().slice(0, 6)),
+        suggest: (e) => (e ? (u ? predictTitles(u, e, 6) : []) : Xn().slice(0, 6)),
         onChange: () => {
           g();
         },
@@ -5830,154 +6323,382 @@ import {
       },
     };
   }
+  /** "Today", "Yesterday", or the date, for a History group heading. */
+  function historyDayLabel(at) {
+    let d = new Date(at),
+      start = new Date();
+    start.setHours(0, 0, 0, 0);
+    let days = Math.round(
+      (start.getTime() - new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime()) / 864e5,
+    );
+    if (days <= 0) return translate("history.today");
+    if (days === 1) return translate("history.yesterday");
+    try {
+      return d.toLocaleDateString(currentLanguage(), {
+        weekday: "long",
+        day: "numeric",
+        month: "long",
+        year: days > 300 ? "numeric" : void 0,
+      });
+    } catch (e) {
+      return d.getDate() + "/" + (d.getMonth() + 1) + "/" + d.getFullYear();
+    }
+  }
+  function historyClock(at) {
+    let d = new Date(at),
+      two = (x) => (x < 10 ? "0" : "") + x;
+    return two(d.getHours()) + ":" + two(d.getMinutes());
+  }
+  /** Open what a History (or search) entry points at: a channel, a film or an episode. */
+  function playFromHistory(h) {
+    if ("live" === h.kind)
+      return void pushRoute("player", {
+        channel: {
+          kind: "live",
+          id: h.id,
+          name: h.name,
+          logo: h.logo,
+          categoryId: h.categoryId,
+          number: h.number,
+        },
+      });
+    // Where the viewer is in it now; a finished title starts again from the top.
+    let saved = progressFor(h.kind, h.id);
+    pushRoute("player", {
+      item: {
+        kind: h.kind,
+        id: h.id,
+        name: h.name,
+        poster: h.poster,
+        ext: h.ext,
+      },
+      seriesId: h.seriesId || null,
+      seriesName: h.seriesName || null,
+      season: h.season || null,
+      episodeNumber: h.episodeNumber || null,
+      resumeAt: saved ? saved.position : 0,
+    });
+  }
+  function historyScreen() {
+    let page = createPage({}),
+      body = page.node;
+    function row(h) {
+      let isLive = "live" === h.kind,
+        title = h.seriesName || h.name,
+        kindText = isLive
+          ? translate("search.channel")
+          : "episode" === h.kind
+            ? "S" + h.season + "E" + h.episodeNumber
+            : translate("search.movie"),
+        done = h.duration > 0 && h.position / h.duration >= 0.93,
+        detail = [kindText, historyClock(h.watchedAt)];
+      !isLive &&
+        h.duration > 0 &&
+        detail.push(
+          done ? translate("history.watched") : ir(h.position || 0) + " / " + ir(h.duration),
+        );
+      let art = createElement("div", {
+        class: "poster history-art" + (isLive ? " poster-contain" : ""),
+        "data-src": (isLive ? h.logo : h.poster) || "",
+        "data-title": title,
+      });
+      (ai(art),
+        !isLive &&
+          h.duration > 0 &&
+          art.appendChild(
+            createElement("div", { class: "card-progress" }, [
+              createElement("div", {
+                class: "card-progress-fill",
+                style:
+                  "width:" + Math.round(100 * Math.min(1, (h.position || 0) / h.duration)) + "%",
+              }),
+            ]),
+          ));
+      let node = createElement("div", { class: "history-row focusable" }, [
+        art,
+        createElement("div", { class: "history-text" }, [
+          createElement("div", { class: "history-title", dir: "auto", text: title }),
+          "episode" === h.kind && h.name && h.name !== title
+            ? createElement("div", { class: "history-sub", dir: "auto", text: h.name })
+            : null,
+          createElement("div", {
+            class: "history-detail",
+            dir: "auto",
+            text: detail.join("   ·   "),
+          }),
+        ]),
+      ]);
+      return ((node.__history = h), node);
+    }
+    function render() {
+      (clearChildren(body),
+        body.appendChild(
+          createElement("div", { class: "page-header" }, [
+            createElement("h1", { class: "page-title", text: translate("nav.history") }),
+            createElement("p", { class: "page-subtitle", text: translate("history.hint") }),
+          ]),
+        ));
+      let list = watchHistory();
+      if (!list.length)
+        return void body.appendChild(
+          createElement("div", { class: "empty", text: translate("history.empty") }),
+        );
+      let day = null;
+      for (let h of list) {
+        let label = historyDayLabel(h.watchedAt);
+        (label !== day &&
+          ((day = label),
+          body.appendChild(createElement("h2", { class: "history-day", text: label }))),
+          body.appendChild(row(h)));
+      }
+    }
+    body.addEventListener("focus-activate", (ev) => {
+      let r = ev.target.closest(".history-row");
+      r && r.__history && playFromHistory(r.__history);
+    });
+    return {
+      mount(t) {
+        (t.appendChild(body), render());
+      },
+      unmount() {
+        clearChildren(body);
+      },
+      initialFocus: () => body.querySelector(".history-row"),
+      onKey(k) {
+        let f = focusedElement(),
+          h = f && f.__history;
+        if (h && (k === KEY_YELLOW || k === KEY_BLUE)) {
+          // Land on the entry that takes its place, not back at the top.
+          let rows = Array.prototype.slice.call(body.querySelectorAll(".history-row")),
+            at = rows.indexOf(f);
+          (removeFromHistory(h.kind, h.id),
+            showToast(translate("history.removed")),
+            page.reset(),
+            render());
+          let next = body.querySelectorAll(".history-row");
+          return (ensureFocus(next[Math.min(at, next.length - 1)] || null), !0);
+        }
+        if (k === KEY_RED && watchHistory().length) {
+          // Twice within a few seconds, so one stray press does not wipe everything.
+          if (Date.now() - (this.__clearAsk || 0) > 4e3)
+            return ((this.__clearAsk = Date.now()), showToast(translate("history.clearAsk")), !0);
+          return (
+            (this.__clearAsk = 0),
+            clearHistory(),
+            page.reset(),
+            render(),
+            showToast(translate("history.cleared")),
+            focusElement(document.querySelector(".rail-item[data-route=history]"), { exact: !0 }),
+            !0
+          );
+        }
+        return !1;
+      },
+    };
+  }
   var qr = hr;
+  /**
+   * Search everything from the menu: channels, films and series in one box. Predictions
+   * appear above the keys as you type (and what is trending before you type), and every
+   * result says what it is and which copy it is - "4K", "HD" - so two copies of a film
+   * are never confused. Keys on the left, results on the right.
+   */
   function Dr() {
-    let e = createPage({}),
-      t = !1,
+    let gone = !1,
+      root = createElement("div", { class: "page global-search" }),
       s = createElement("input", {
         class: "field-input search-input",
         type: "text",
         readonly: "readonly",
-        placeholder: "Search channels, movies and series",
+        placeholder: translate("search.placeholder"),
       }),
-      l = createElement("div", {
-        class: "empty",
-        text: "",
-      }),
-      o = createElement("div", {
-        class: "search-results",
-      }),
+      status = createElement("div", { class: "gs-status", text: "" }),
+      list = createElement("div", { class: "gs-list", "data-focus-memory": "search-results" }),
+      results = createElement("div", { class: "gs-results" }, [status, list]),
+      everything = () => {
+        let i = br();
+        return i ? i.series.concat(i.movies, i.live) : null;
+      },
       u = Jn({
         language: "ar",
-        suggest: (e) => {
-          if (!e) return Xn().slice(0, 6);
-          let t = br();
-          return t ? Zn(t.series.concat(t.movies, t.live), e, 6) : [];
+        suggest: (q) => {
+          let all = everything();
+          if (!q) {
+            let past = Xn().slice(0, 3),
+              hot = all
+                ? trendingTitles(
+                    all.filter((x) => "live" !== x.item.kind),
+                    8,
+                  )
+                : [];
+            return past
+              .map((t) => ({ text: t, label: "⌕  " + t }))
+              .concat(
+                hot.filter((t) => past.indexOf(t) < 0).map((t) => ({ text: t, label: "★  " + t })),
+              );
+          }
+          return all ? predictTitles(all, q, 6) : [];
         },
-        onChange: () => {
-          m(s.value);
-        },
+        onChange: () => run(s.value),
         onSubmit: () => {
           Gn(s.value);
-          let e = o.querySelector(".card");
-          e && focusElement(e);
+          let first = list.querySelector(".gs-row");
+          first && focusElement(first);
         },
       });
-    function c(e) {
-      "live" === e.kind
-        ? pushRoute("player", {
-            channel: e,
-          })
-        : pushRoute("details", {
-            kind: e.kind,
-            id: e.id,
-            item: e,
-          });
+    u.setTarget(s);
+    let left = createElement("div", { class: "gs-keys" }, [s, u.node]);
+    (root.appendChild(
+      createElement("div", { class: "page-header" }, [
+        createElement("h1", { class: "page-title", text: translate("nav.search") }),
+      ]),
+    ),
+      root.appendChild(createElement("div", { class: "gs-split" }, [left, results])));
+    function open(item) {
+      (Gn(s.value),
+        "live" === item.kind
+          ? pushRoute("player", { channel: item })
+          : pushRoute("details", { kind: item.kind, id: item.id, item: item }));
     }
-    (u.setTarget(s),
-      e.node.appendChild(
-        createElement(
-          "div",
-          {
-            class: "page-header",
-          },
-          [
-            createElement("h1", {
-              class: "page-title",
-              text: "Search",
-            }),
-          ],
-        ),
-      ),
-      e.add(
-        createElement(
-          "div",
-          {
-            class: "search-bar page-block",
-          },
-          [s],
-        ),
-      ),
-      e.add(
-        createElement(
-          "div",
-          {
-            class: "page-block",
-          },
-          [u.node],
-        ),
-      ),
-      e.add(l),
-      e.add(o));
-    let d = (e, t) => Cr(e, t);
-    let m = a((e) => {
-      (function (e) {
-        return runAsync(this, null, function* () {
-          let n = qr(e);
-          if ((clearChildren(o), n.length < 2))
-            return void (l.textContent = "Type at least two characters.");
-          br() || (l.textContent = "Preparing search…");
-          let i;
-          try {
-            i = yield wr();
-          } catch (err) {
-            return void (
-              t ||
-              qr(s.value) !== n ||
-              (l.textContent = "Search is not available right now. Try again in a moment.")
-            );
-          }
-          if (t || qr(s.value) !== n) return;
-          u.refreshSuggestions();
-          let a = [
-            {
-              title: "Channels",
-              items: d(i.live, n),
-              variant: "channel",
-            },
-            {
-              title: "Movies",
-              items: d(i.movies, n),
-              variant: "poster",
-            },
-            {
-              title: "Series",
-              items: d(i.series, n),
-              variant: "poster",
-            },
-          ].filter((e) => e.items.length);
-          if ((clearChildren(o), a.length)) {
-            l.textContent = "";
-            for (let e of a) {
-              let t = xi({
-                key: "search-" + e.title,
-                title: e.title + "  (" + e.items.length + ")",
-                items: e.items,
-                variant: e.variant,
-                onSelect: c,
-              });
-              o.appendChild(t.node);
-            }
-          } else l.textContent = "Nothing found for “" + e + "”.";
+    function badge(text, cls) {
+      return createElement("span", { class: "gs-badge " + cls, text: text });
+    }
+    function resultRow(item) {
+      let live = "live" === item.kind,
+        q = titleQuality(item),
+        art = createElement("div", {
+          class: "poster " + (live ? "gs-art-wide poster-contain" : "gs-art"),
+          "data-src": (live ? item.logo : item.poster) || "",
+          "data-title": displayTitle(item.name),
         });
-      })(e).catch(() => {});
-    }, 350);
+      ai(art);
+      let chips = createElement("div", { class: "gs-chips" }, [
+        q ? badge(q.tag, "gs-q-" + q.tag.toLowerCase()) : null,
+        badge(
+          translate(
+            live ? "search.channel" : "series" === item.kind ? "search.serie" : "search.movie",
+          ),
+          "gs-kind",
+        ),
+        item.rating ? badge("★ " + Number(item.rating).toFixed(1), "gs-rating") : null,
+      ]);
+      let node = createElement("div", { class: "gs-row focusable" }, [
+        art,
+        createElement("div", { class: "gs-text" }, [
+          createElement("div", { class: "gs-title", dir: "auto", text: displayTitle(item.name) }),
+          chips,
+          // The full name as the provider lists it, and where: what tells two copies apart.
+          createElement("div", {
+            class: "gs-source",
+            dir: "auto",
+            text: item.name + (item.categoryName ? "   ·   " + item.categoryName : ""),
+          }),
+        ]),
+      ]);
+      return ((node.__item = item), node);
+    }
+    // Copies of the same title sit together, best quality first.
+    function grouped(entries) {
+      let order = [],
+        groups = Object.create(null),
+        seen = Object.create(null);
+      for (let x of entries) {
+        // A title listed in several categories is still one result.
+        let q = titleQuality(x.item),
+          same = hr(x.item.name) + "|" + (q ? q.tag : "");
+        if (seen[x.item.id] || seen[same]) continue;
+        seen[x.item.id] = seen[same] = !0;
+        let k = hr(displayTitle(x.item.name));
+        (groups[k] || ((groups[k] = []), order.push(k)), groups[k].push(x.item));
+      }
+      let out = [];
+      for (let k of order) {
+        let g = groups[k];
+        (g.sort(
+          (a, c) =>
+            (titleQuality(a) || { rank: 2.5 }).rank - (titleQuality(c) || { rank: 2.5 }).rank,
+        ),
+          out.push.apply(out, g));
+      }
+      return out;
+    }
+    function scrollList(row) {
+      let top = row.offsetTop,
+        view = 800,
+        cur = list.__scroll || 0,
+        next = cur;
+      (top - 60 < cur
+        ? (next = Math.max(0, top - 60))
+        : top + row.offsetHeight + 40 > cur + view && (next = top + row.offsetHeight + 40 - view),
+        next !== cur &&
+          ((list.__scroll = next), (list.style.transform = "translate3d(0," + -next + "px,0)")));
+    }
+    let run = a((text) => {
+      runAsync(null, null, function* () {
+        let q = qr(text);
+        if ((clearChildren(list), (list.__scroll = 0), (list.style.transform = ""), q.length < 2))
+          return void (status.textContent = translate("search.minChars"));
+        br() || (status.textContent = translate("search.preparing"));
+        let index;
+        try {
+          index = yield wr();
+        } catch (err) {
+          return void (
+            gone ||
+            qr(s.value) !== q ||
+            (status.textContent = translate("search.unavailable"))
+          );
+        }
+        if (gone || qr(s.value) !== q) return;
+        u.refreshSuggestions();
+        let sections = [
+          { key: "search.series", entries: rankMatches(index.series, q, 120) },
+          { key: "search.movies", entries: rankMatches(index.movies, q, 120) },
+          { key: "search.channels", entries: rankMatches(index.live, q, 90) },
+        ].filter((x) => x.entries.length);
+        // The section whose best match is strongest comes first.
+        sections.sort((x, y) => trendScore(y.entries[0]) - trendScore(x.entries[0]));
+        if (!sections.length)
+          return void (status.textContent = translate("search.nothing") + " “" + text.trim() + "”");
+        status.textContent = "";
+        for (let sec of sections) {
+          list.appendChild(
+            createElement("div", {
+              class: "gs-section",
+              text: translate(sec.key),
+            }),
+          );
+          for (let item of grouped(sec.entries).slice(0, 40)) list.appendChild(resultRow(item));
+        }
+      }).catch(() => {});
+    }, 300);
+    s.addEventListener("input", () => run(s.value));
     return (
-      s.addEventListener("input", () => {
-        m(s.value);
+      root.addEventListener("focus-enter", (ev) => {
+        list.contains(ev.target) && scrollList(ev.target);
+      }),
+      root.addEventListener("focus-activate", (ev) => {
+        let row = ev.target.closest(".gs-row");
+        row && row.__item && open(row.__item);
       }),
       {
         mount(t) {
-          (t.appendChild(e.node), (l.textContent = "Type at least two characters."));
+          (t.appendChild(root),
+            (status.textContent = translate("search.minChars")),
+            // Build the index now, while the viewer reaches for the first letter, so
+            // predictions and trending titles are there by the time they type.
+            wr()
+              .then(() => gone || u.refreshSuggestions())
+              .catch(() => {}));
         },
         unmount() {
-          ((t = !0), clearChildren(e.node));
+          ((gone = !0), clearChildren(root));
         },
         initialFocus: () => u.firstKey(),
-        onKey(e) {
-          if (e === KEY_GREEN) {
-            let e = o.querySelector(".card");
-            if (e) return (focusElement(e), !0);
+        onKey(k) {
+          if (k === KEY_GREEN) {
+            let first = list.querySelector(".gs-row");
+            if (first) return (focusElement(first), !0);
           }
           return !1;
         },
@@ -6023,13 +6744,19 @@ import {
           host = String(a.url || "").replace(/^https?:\/\//, ""),
           r = row(
             a.id,
-            free ? translate("nav.freetv") : a.label ? a.label + "  ·  " + a.username : a.username || host,
+            free
+              ? translate("nav.freetv")
+              : a.label
+                ? a.label + "  ·  " + a.username
+                : a.username || host,
             free ? translate("accounts.freeDetail") : host + ("m3u" === a.kind ? "  ·  M3U" : ""),
             a.id === cur ? translate("accounts.active") : "",
           );
         ((r.__account = a), a.id === cur && r.classList.add("active"), list.appendChild(r));
       }
-      list.appendChild(row("add", translate("accounts.add"), translate("settings.accountDetail"), "+"));
+      list.appendChild(
+        row("add", translate("accounts.add"), translate("settings.accountDetail"), "+"),
+      );
     }
     return (
       page.add(
@@ -6066,7 +6793,8 @@ import {
             return (showToast(translate("accounts.cantRemoveActive")), !0);
           writeAccounts(readAccounts().filter((x) => x.id !== a.id));
           try {
-            for (let key of ACCOUNT_SCOPED_KEYS) localStorage.removeItem("iptv:acct:" + a.id + ":" + key);
+            for (let key of ACCOUNT_SCOPED_KEYS)
+              localStorage.removeItem("iptv:acct:" + a.id + ":" + key);
           } catch (e) {}
           return (
             render(),
@@ -6133,13 +6861,13 @@ import {
         ),
       ),
         t.appendChild(
-        n(
-          "language",
-          translate("settings.language"),
-          translate("settings.languageDetail"),
-          (LOCALES.filter((e) => e.code === currentLanguage())[0] || LOCALES[0]).label,
+          n(
+            "language",
+            translate("settings.language"),
+            translate("settings.languageDetail"),
+            (LOCALES.filter((e) => e.code === currentLanguage())[0] || LOCALES[0]).label,
+          ),
         ),
-      ),
         t.appendChild(
           n(
             "preferLowerBitrate",
@@ -6151,13 +6879,13 @@ import {
         // (Not offered on Samsung: it always uses HLS, see liveStreamFormat.)
         window.tizen ||
           t.appendChild(
-          n(
-            "liveFormat",
-            "Live stream format",
-            "Raw TS starts about a second faster than HLS on this TV.",
-            "ts" === e.liveFormat ? "TS (faster)" : "HLS",
+            n(
+              "liveFormat",
+              "Live stream format",
+              "Raw TS starts about a second faster than HLS on this TV.",
+              "ts" === e.liveFormat ? "TS (faster)" : "HLS",
+            ),
           ),
-        ),
         t.appendChild(
           n(
             "heroTeaser",
@@ -6172,6 +6900,14 @@ import {
             "Spotlight sound",
             "Plays the preview with sound, the way Netflix’s billboard does.",
             e.heroTeaserSound ? translate("settings.on") : translate("settings.off"),
+          ),
+        ),
+        t.appendChild(
+          n(
+            "seekThumbnails",
+            "Pictures while seeking",
+            "Shows a frame of where you will land as you skip through a film or episode. It opens the file a second time, so it is used only when the account allows two connections.",
+            e.seekThumbnails ? translate("settings.on") : translate("settings.off"),
           ),
         ),
         t.appendChild(
@@ -6251,6 +6987,11 @@ import {
               heroTeaserSound: !n.heroTeaserSound,
             });
             break;
+          case "seekThumbnails":
+            saveSettings({
+              seekThumbnails: !n.seekThumbnails,
+            });
+            break;
           case "showChannelNumbers":
             saveSettings({
               showChannelNumbers: !n.showChannelNumbers,
@@ -6274,7 +7015,10 @@ import {
         }
         s();
         // The rows were rebuilt: keep focus on the one just changed.
-        let again = Array.prototype.filter.call(list ? list.children : [], (r) => r.__key === key)[0];
+        let again = Array.prototype.filter.call(
+          list ? list.children : [],
+          (r) => r.__key === key,
+        )[0];
         again && focusElement(again, { exact: !0 });
       }),
       {
@@ -6647,6 +7391,7 @@ import {
       registerRoute("series", Ar),
       registerRoute("favorites", Or),
       registerRoute("continue", Fr),
+      registerRoute("history", historyScreen),
       registerRoute("search", Dr),
       registerRoute("settings", jr),
       registerRoute("freetv", Kr),
@@ -6674,15 +7419,15 @@ import {
           !0,
         ),
           document.addEventListener("mousemove", (e) => {
-          if (e.clientX === lx && e.clientY === ly) return;
-          ((lx = e.clientX), (ly = e.clientY));
-          // A hand resting on the Magic Remote jitters a few pixels. Just after a key press
-          // that is not a choice to pull focus back under the pointer.
-          if (Date.now() - keyAt < 1500 && Math.abs(lx - kx) + Math.abs(ly - ky) < 30) return;
-          lastInputAt = Date.now();
-          let t = target(e);
-          t && t !== focusedEl && focusElement(t, { exact: !0 });
-        }),
+            if (e.clientX === lx && e.clientY === ly) return;
+            ((lx = e.clientX), (ly = e.clientY));
+            // A hand resting on the Magic Remote jitters a few pixels. Just after a key press
+            // that is not a choice to pull focus back under the pointer.
+            if (Date.now() - keyAt < 1500 && Math.abs(lx - kx) + Math.abs(ly - ky) < 30) return;
+            lastInputAt = Date.now();
+            let t = target(e);
+            t && t !== focusedEl && focusElement(t, { exact: !0 });
+          }),
           document.addEventListener("click", (e) => {
             let t = target(e);
             t &&
@@ -6767,28 +7512,28 @@ import {
                       partial = !0;
                       continue;
                     }
-                  for (let i of e) {
-                    let e = fn(i.name);
-                    if (!e) continue;
-                    let r = qualityTagFor(i.name) || qualityTagFor(n.name);
-                    (t[e] || (t[e] = []),
-                      t[e].push({
-                        id: i.id,
-                        name: i.name,
-                        logo: i.logo,
-                        categoryId: i.categoryId,
-                        quality: r ? r.tag : null,
-                        rank: r ? r.rank : 2,
-                      }));
+                    for (let i of e) {
+                      let e = fn(i.name);
+                      if (!e) continue;
+                      let r = qualityTagFor(i.name) || qualityTagFor(n.name);
+                      (t[e] || (t[e] = []),
+                        t[e].push({
+                          id: i.id,
+                          name: i.name,
+                          logo: i.logo,
+                          categoryId: i.categoryId,
+                          quality: r ? r.tag : null,
+                          rank: r ? r.rank : 2,
+                        }));
+                    }
                   }
-                }
-                for (let e of Object.keys(t)) t[e].sort((e, t) => e.rank - t.rank);
-                // A category that failed leaves the index short: fill it in once, later.
-                partial && !force && setTimeout(() => buildChannelIndex(!0), 12e4);
-                return ((gn = null), (channelsByName = t));
-              }).catch((e) => {
-                throw ((gn = null), e);
-              }))
+                  for (let e of Object.keys(t)) t[e].sort((e, t) => e.rank - t.rank);
+                  // A category that failed leaves the index short: fill it in once, later.
+                  partial && !force && setTimeout(() => buildChannelIndex(!0), 12e4);
+                  return ((gn = null), (channelsByName = t));
+                }).catch((e) => {
+                  throw ((gn = null), e);
+                }))
             ).catch(() => {
               // The line was down at boot: build the index once it is back (bounded).
               (attempt || 0) < 10 &&

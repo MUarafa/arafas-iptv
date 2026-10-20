@@ -83,7 +83,7 @@ async function search(app, text) {
   await app.eval(`(function(){var s=document.querySelector('.search-input'); s.value=${q(text)}; s.dispatchEvent(new Event('input'));})()`);
 }
 const SEARCH_STATE =
-  "(function(){return {cards:document.querySelectorAll('.search-results .card').length, msg:Array.prototype.map.call(document.querySelectorAll('.empty'),function(n){return n.textContent}).join('|')}})()";
+  "(function(){return {cards:document.querySelectorAll('.gs-list .gs-row').length, msg:Array.prototype.map.call(document.querySelectorAll('.gs-status'),function(n){return n.textContent}).join('|')}})()";
 
 // Measures a catalogue: boot, hero, background index, Live TV, Movies, key latency, search.
 async function measure({ open, server, note }, label) {
@@ -156,7 +156,7 @@ async function measure({ open, server, note }, label) {
   await goto(app, "search");
   let t3 = Date.now();
   await search(app, "mbc");
-  await waitFor(app, "document.querySelectorAll('.search-results .card').length > 0", 90000, 100);
+  await waitFor(app, "document.querySelectorAll('.gs-list .gs-row').length > 0", 90000, 100);
   r.searchFirstResults = Date.now() - t3;
   r.heapAfterSearchMB = await app.eval("performance.memory?Math.round(performance.memory.usedJSHeapSize/1048576):null");
   r.totalRequests = server.hits.length;
@@ -624,7 +624,7 @@ export default [
       await waitFor(app, ITEMS + " > 0");
       await goto(app, "search");
       await search(app, "مرحبا"); // a series name the weird generator keeps ("مسلسل…" is never emitted)
-      await waitFor(app, "document.querySelectorAll('.search-results .card').length > 0", 15000, 100);
+      await waitFor(app, "document.querySelectorAll('.gs-list .gs-row').length > 0", 15000, 100);
       let ar = await app.eval(SEARCH_STATE);
       await search(app, "💥🎬");
       await app.tick(800);
@@ -819,7 +819,7 @@ export default [
       let s1 = await app.eval(SEARCH_STATE);
       server.setConfig({});
       await search(app, "crown");
-      let ok = await waitFor(app, "document.querySelectorAll('.search-results .card').length > 0", 5000, 200);
+      let ok = await waitFor(app, "document.querySelectorAll('.gs-list .gs-row').length > 0", 5000, 200);
       let s2 = await app.eval(SEARCH_STATE);
       note.push("while failing: " + JSON.stringify(s1) + " ; after recovery: " + JSON.stringify(s2));
       expect(!/Preparing/.test(s1.msg), "search shows 'Preparing search…' forever while a request fails");

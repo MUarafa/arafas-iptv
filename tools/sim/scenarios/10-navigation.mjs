@@ -12,8 +12,8 @@
 
 import { sleep } from "../lib.mjs";
 
-const RAIL = ["continue", "favorites", "search", "home", "live", "movies", "series", "settings", "freetv", "account"];
-const KNOWN_ROUTES = new Set(["welcome", "home", "player", "details", "live", "movies", "series", "favorites", "continue", "search", "settings", "freetv", "account"]);
+const RAIL = ["continue", "history", "favorites", "search", "home", "live", "movies", "series", "settings", "freetv", "account"];
+const KNOWN_ROUTES = new Set(["welcome", "home", "player", "details", "live", "movies", "series", "favorites", "continue", "history", "search", "settings", "freetv", "account"]);
 
 let MESSAGES = null;
 try {
@@ -783,7 +783,7 @@ export default [
       await railTo(app, expect, "home");
       await app.key("ok", 3000);
       let a = await snap();
-      let cycle = ["live", "movies", "series", "favorites", "continue", "search", "settings", "home"];
+      let cycle = ["live", "movies", "series", "favorites", "continue", "history", "search", "settings", "home"];
       let t0 = Date.now();
       for (let i = 0; i < 120; i++) {
         let route = cycle[i % cycle.length];

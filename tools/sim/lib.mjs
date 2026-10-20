@@ -14,6 +14,7 @@ const CHROME =
     "C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe",
     "/usr/bin/google-chrome",
     "/usr/bin/chromium",
+    "/opt/pw-browsers/chromium-1194/chrome-linux/chrome",
     "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
   ].find((p) => fs.existsSync(p));
 
@@ -72,6 +73,8 @@ export async function launchBrowser() {
       "--disable-extensions",
       "--autoplay-policy=no-user-gesture-required",
       "--window-size=1920,1080",
+      // Chromium refuses to start as root (containers, CI) without this.
+      ...(process.getuid && process.getuid() === 0 ? ["--no-sandbox"] : []),
       "about:blank",
     ],
     { stdio: "ignore" },

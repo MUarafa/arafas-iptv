@@ -3,6 +3,44 @@
 All versions are what actually ran on real LG TVs; every fix below was verified on the
 device, not only in theory.
 
+## 1.1.0
+
+- **Previous and next episode, across seasons.** The player has Previous episode, Next
+  episode and an Episodes list (every episode of every season, the playing one marked).
+  Channel +/- on the remote also go to the next/previous episode. The end of a season no
+  longer stops there: Next goes on to the next season's first episode. Episodes opened
+  from Continue Watching, History or Home get the full list too. A previous episode
+  resumes where it was left. The series page opens on the season being watched and its
+  button says which episode resumes ("Resume · S2E5").
+- **Menus without fades.** The menu and the category lists had fades and gradients laid
+  over text (the left edge of every screen faded the first letters of category names).
+  They are gone: the menu is solid black, labels are bigger, bold and appear whole, the
+  focused item is a solid card with a white frame, and nothing animates in or out.
+  Category names get two lines and the focused one shows in full; channel names get two
+  whole lines instead of being cut with "…".
+- **Search everything from the menu.** One box for channels, films and series: keys on
+  the left, results on the right. Predictions appear above the keys as you type, best
+  first - titles that start with what you typed, then trendier ones (recently added,
+  highly rated, or already watched on this TV). Before you type, the trending titles on
+  your provider are offered. Every result says what it is (Movie / Series / Channel) and
+  which copy it is, with a 4K / FHD / HD / SD badge (from the title or its category), and
+  shows the provider's full name and category underneath; copies of the same title sit
+  together, best quality first, and identical copies are listed once.
+- **History.** A new menu item lists everything that played - films, episodes and
+  channels, finished or not - newest first under Today / Yesterday / the date, like
+  YouTube's history. Separate from Continue Watching, which forgets a finished title. OK
+  plays it again, Yellow removes one, Red twice clears it. Kept per account.
+- **Netflix-style seeking.** A tap moves 10 s; holding speeds up the longer you hold
+  (10 → 20 → 30 → 60 → 120 s steps), and the jump lands 0.8 s after the last press. While
+  scrubbing, the target time shows over the bar, with a picture of that moment when the
+  account allows two connections (Settings → "Pictures while seeking"; a single-connection
+  plan would be cut off by opening the file twice).
+- **Spotlight previews start again.** After jumping to 30 % of the film, some TVs never
+  fire a second "playing", so the preview played hidden behind the artwork; it now shows
+  as soon as the jump lands. Films get 15 s to start instead of 7 (IPTV files often take
+  8-12 s, so every title was skipped before it began), and a TV that refuses to autoplay
+  with sound gets the preview muted instead of none.
+
 ## 1.0.9
 
 - **Continue Watching no longer loses a title when resuming fails.** Leaving the player
