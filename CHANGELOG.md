@@ -31,7 +31,7 @@ device, not only in theory.
   YouTube's history. Separate from Continue Watching, which forgets a finished title. OK
   plays it again, Yellow removes one, Red twice clears it. Kept per account.
 - **Netflix-style seeking.** A tap moves 10 s; holding speeds up the longer you hold
-  (10 → 20 → 30 → 60 → 120 s steps), and the jump lands 0.8 s after the last press. While
+  (10 → 30 → 60 → 120 s steps, one level per second held), and the jump lands 0.8 s after the last press. While
   scrubbing, the target time shows over the bar, with a picture of that moment when the
   account allows two connections (Settings → "Pictures while seeking"; a single-connection
   plan would be cut off by opening the file twice).

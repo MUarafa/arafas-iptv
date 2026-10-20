@@ -3781,8 +3781,7 @@ import {
   // Netflix-style scrubbing: a tap moves 10 s; holding the key speeds up the longer it is
   // held, so a long jump takes a couple of seconds of holding, not dozens of presses.
   function seekStep(heldMs, duration) {
-    let step =
-      heldMs < 1200 ? 10 : heldMs < 2500 ? 20 : heldMs < 4e3 ? 30 : heldMs < 6e3 ? 60 : 120;
+    let step = heldMs < 1e3 ? 10 : heldMs < 2e3 ? 30 : heldMs < 3e3 ? 60 : 120;
     // A short file does not need 2-minute jumps.
     return duration > 0 ? Math.max(10, Math.min(step, Math.round(duration / 40))) : step;
   }

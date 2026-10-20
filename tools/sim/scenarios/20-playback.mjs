@@ -677,15 +677,15 @@ export default [
     },
   },
   {
-    name: "episode from Home row played to the end -> series details (not an episode id as series)",
+    // Opened from Home, an episode still knows its series: at its end the next one plays.
+    name: "episode from Home row played to the end -> the next episode of that series plays",
     async run({ open, expect, server, note }) {
       let app = await open({ storage: seeded(server, [episodeEntry(4, 2390)]), media: [{ match: "/series/", duration: 2400 }] });
       await fromHomeRow(app, ep(4), 20e3);
-      let p = await app.eval("JSON.stringify(__router.current()) + ' ' + JSON.stringify((document.querySelector('.details-title')||{}).textContent)");
-      note.push("after end: " + p);
-      expect.eq(await route(app), "details", "route");
-      let title = await app.text(".details-title");
-      expect(title && /Series 30001|The Crown/.test(title), "details of the series, got title " + J(title));
+      let title = await app.eval("(document.querySelector('.osd-title')||{}).textContent");
+      note.push("after end: " + (await route(app)) + " " + J(title));
+      expect.eq(await route(app), "player", "route");
+      expect(/S1E5\b/.test(title || ""), "next episode playing, got " + J(title));
     },
   },
   {
@@ -713,14 +713,17 @@ export default [
     },
   },
   {
-    name: "last episode of season 1 ends -> series details",
+    // The end of a season is not the end of the series: season 2 starts.
+    name: "last episode of season 1 ends -> season 2 episode 1 plays",
     async run({ open, expect, server, note }) {
       let app = await open({ storage: seeded(server, [episodeEntry(6, 2380)]), media: [{ match: "/series/", duration: 2400 }] });
       await app.eval(`__router.push('details', {kind:'series', id:'${SERIES_ID}'})`);
       await app.tick(2000);
       await activate(app, ".episode-list .episode-row:nth-child(6)", 30e3);
-      note.push(`route=${await route(app)} entry=${J(await resumeOf(app, "episode", ep(6)))}`);
-      expect.eq(await route(app), "details", "route");
+      let title = await app.eval("(document.querySelector('.osd-title')||{}).textContent");
+      note.push(`route=${await route(app)} title=${J(title)}`);
+      expect.eq(await route(app), "player", "route");
+      expect(/S2E1\b/.test(title || ""), "season 2 started, got " + J(title));
     },
   },
 
