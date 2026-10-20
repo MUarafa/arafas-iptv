@@ -1,6 +1,6 @@
 {
   "id": "com.muara.iptv",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "vendor": "Muara",
   "type": "web",
   "main": "index.html",

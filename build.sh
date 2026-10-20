@@ -2,15 +2,20 @@
 # Package Arafa's IPTV into an installable .ipk.
 #
 #   ./build.sh                 -> just build
-#   ./build.sh install         -> build, then install + launch on both TVs
+#   ./build.sh install         -> build, then install + launch on every TV set up in ares
 #
-# The toolchain lives on D: only (no Node on C:, no nvm).
+# On the machine whose toolchain lives on D: (no Node on C:, no nvm) that toolchain is
+# used; anywhere else the Node, ares CLI and device list already on PATH/HOME are used.
 set -uo pipefail
 cd "$(dirname "$0")"
 
 # POSIX-style paths: Git Bash does not resolve "D:/..." entries on PATH.
-export PATH="/d/IPTV/node22/node-v22.22.2-win-x64:/d/IPTV/npm-global:$PATH"
-export HOME="/d/IPTV/webos-home"
+if [ -d /d/IPTV/node22/node-v22.22.2-win-x64 ]; then
+  export PATH="/d/IPTV/node22/node-v22.22.2-win-x64:/d/IPTV/npm-global:$PATH"
+fi
+if [ -d /d/IPTV/webos-home ]; then
+  export HOME="/d/IPTV/webos-home"
+fi
 
 # Which TVs to install on. Override without editing this file:
 #   TV_DEVICES="living room,bedroom" ./build.sh install
@@ -36,36 +41,44 @@ fi
 node --check app/bundle.js || exit 1
 echo "syntax ok"
 
-# The account is injected only for the local build and MUST come back out, whatever
-# happens next - a failed build must never leave credentials in the working tree.
-restore() {
-  if [ -f secrets/account.json ]; then
-    node -e '
-      const fs=require("fs");
-      const a=JSON.parse(fs.readFileSync("secrets/account.json","utf8"));
-      const p="app/bundle.js"; let s=fs.readFileSync(p,"utf8");
-      const real=`{url:${JSON.stringify(a.url)},username:${JSON.stringify(a.username)},password:${JSON.stringify(a.password)}}`;
-      if(s.indexOf(real)>=0){ fs.writeFileSync(p,s.replace(real,`{url:"",username:"",password:""}`),"utf8");
-        console.log("account defaults removed from the working tree"); }
-    '
-  fi
-}
-trap restore EXIT
+# Accounts are injected into a staged copy of app/ that is packaged and then thrown
+# away, so the working tree never holds credentials - even when the build fails.
+STAGE=$(mktemp -d)
+trap 'rm -rf "$STAGE"' EXIT
+cp -r app "$STAGE/app"
 
+# secrets/accounts.json (the account list, seeded once on a TV with no saved accounts).
+if [ -f secrets/accounts.json ]; then
+  node -e '
+    const fs = require("fs");
+    const list = JSON.parse(fs.readFileSync("secrets/accounts.json", "utf8"));
+    const p = process.argv[1];
+    let s = fs.readFileSync(p, "utf8");
+    const slot = "{json:\"\"}";
+    const n = s.split(slot).length - 1;
+    if (n !== 1) { console.error("preset slot found " + n + " times, expected 1"); process.exit(1); }
+    fs.writeFileSync(p, s.replace(slot, "{json:" + JSON.stringify(JSON.stringify(list)) + "}"), "utf8");
+    console.log("preset accounts injected: " + list.length);
+  ' "$STAGE/app/bundle.js" || exit 1
+fi
+
+# secrets/account.json (older single-account defaults), still honoured if present.
 if [ -f secrets/account.json ]; then
   node -e '
     const fs=require("fs");
     const a=JSON.parse(fs.readFileSync("secrets/account.json","utf8"));
-    const p="app/bundle.js"; let s=fs.readFileSync(p,"utf8");
+    const p=process.argv[1]; let s=fs.readFileSync(p,"utf8");
     const real=`{url:${JSON.stringify(a.url)},username:${JSON.stringify(a.username)},password:${JSON.stringify(a.password)}}`;
-    if(s.indexOf(`{url:"",username:"",password:""}`)>=0){
-      fs.writeFileSync(p,s.replace(`{url:"",username:"",password:""}`,real),"utf8");
+    if(s.indexOf(process.argv[2])>=0){
+      fs.writeFileSync(p,s.replace(process.argv[2],real),"utf8");
       console.log("account defaults injected (local build only)"); }
-  ' || exit 1
+  ' "$STAGE/app/bundle.js" "$PLACEHOLDER" || exit 1
 fi
 
+node --check "$STAGE/app/bundle.js" || exit 1
+
 rm -f ./*.ipk
-ares-package app -o . || exit 1
+ares-package "$STAGE/app" -o . || exit 1
 IPK=$(ls -t ./*.ipk 2>/dev/null | head -1)
 [ -n "$IPK" ] || { echo "no ipk produced" >&2; exit 1; }
 echo "built: $IPK"

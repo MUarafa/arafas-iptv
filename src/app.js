@@ -10,6 +10,7 @@ import {
   renderRoute,
   replaceRoute,
   routeHistory,
+  routeIsBack,
   routeRoot,
   routeTable,
   setRouteRoot,
@@ -3457,11 +3458,21 @@ import {
         })(e),
         !0);
   }
+  // Home is kept while the viewer is on a page opened from it: Back returns to it as it
+  // was, instead of rebuilding every row and asking the portal for all of them again.
+  var keptHome = null;
+  function homeRoute(p) {
+    if (routeIsBack && keptHome) return keptHome;
+    keptHome && keptHome.destroy();
+    return (keptHome = ji(p));
+  }
   function ji() {
     let e = createPage({}),
       t = !1,
       i = null,
-      s = [];
+      s = [],
+      built = !1,
+      lastFocus = null;
     function a(t) {
       let n = xi(t);
       return (s.push(n), e.add(n.node), n);
@@ -3510,6 +3521,8 @@ import {
     }
     return {
       mount(r) {
+        if (built) return void r.appendChild(e.node);
+        built = !0;
         (r.appendChild(e.node),
           e.node.addEventListener("focus-enter", (e) => {
             i && i.setFocused(i.node.contains(e.target));
@@ -3653,14 +3666,23 @@ import {
             });
           })());
       },
+      // Leaving Home only sets it aside (see homeRoute); destroy() is the real teardown.
       unmount() {
+        let f = focusedElement();
+        lastFocus = f && e.node.contains(f) ? f : null;
+        i && i.setFocused(!1);
+      },
+      destroy() {
         ((t = !0),
           i && (i.stop(), (i = null)),
           o && (o.disconnect(), (o = null)),
           clearChildren(e.node));
       },
       initialFocus: () =>
-        e.node.querySelector(".hero-button") || e.node.querySelector(".card") || null,
+        (lastFocus && e.node.contains(lastFocus) && lastFocus) ||
+        e.node.querySelector(".hero-button") ||
+        e.node.querySelector(".card") ||
+        null,
       onKey: () => !1,
     };
   }
@@ -5276,16 +5298,21 @@ import {
             (function __ld(k) {
               ("series" === e.kind ? S : C)().catch(function (err) {
                 if (a) return;
-                var off = !!(err && String(err.message || err).indexOf("__NOAPI__") >= 0);
+                var msg = String((err && err.message) || err || ""),
+                  off = msg.indexOf("__NOAPI__") >= 0,
+                  // The portal said no (an expired or blocked account): asking again only
+                  // makes a flood-protected portal block it for longer.
+                  refused = /^HTTP 4\d\d/.test(msg);
                 h.textContent = off
                   ? translate("details.offline")
-                  : translate("details.couldNotLoad");
-                if (k < 20)
+                  : translate("details.couldNotLoad") +
+                    (refused ? " (" + msg.split(" for ")[0] + ")" : "");
+                if (!refused && k < 5)
                   setTimeout(
                     function () {
                       a || __ld(k + 1);
                     },
-                    off ? 5e3 : 2e3,
+                    (off ? 5e3 : 3e3) * (k + 1),
                   );
               });
             })(0));
@@ -7382,7 +7409,7 @@ import {
       setRouteRoot(r),
       (window.__router = l),
       registerRoute("welcome", ei),
-      registerRoute("home", ji),
+      registerRoute("home", homeRoute),
       registerRoute("player", rr),
       registerRoute("details", ar),
       registerRoute("live", Ir),

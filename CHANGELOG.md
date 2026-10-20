@@ -3,6 +3,21 @@
 All versions are what actually ran on real LG TVs; every fix below was verified on the
 device, not only in theory.
 
+## 1.1.1
+
+- **Back to Home is instant.** Coming back from a series, a film or any page opened from
+  Home rebuilt the whole page: every category row was written out again one after
+  another and fetched from the provider again. Home is now kept while you are away and
+  Back returns to it as it was, on the card you left.
+- **A refused account is not hammered.** When the provider refuses the account (an
+  expired or blocked line answers HTTP 4xx, e.g. 469), the series/film page no longer
+  retries 20 times in a row - which only makes a flood-protected provider block it for
+  longer. It says why ("Could not load details. (HTTP 469)"); other failures are retried
+  a few times, further apart.
+- **`./build.sh install` works on any PC.** The D: toolchain is used only where it
+  exists, and the accounts in `secrets/accounts.json` are injected into a throwaway copy
+  of the app that is packaged, so the working tree never holds credentials.
+
 ## 1.1.0
 
 - **Previous and next episode, across seasons.** The player has Previous episode, Next

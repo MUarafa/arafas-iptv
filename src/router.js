@@ -54,7 +54,18 @@ export function replaceRoute(e, t) {
   ((activeRouteParams = t), renderRoute(e, t));
 }
 
+/** True while goBack is rendering: a screen can then return to the state it was left in. */
+export var routeIsBack = false;
+
 export function goBack() {
   let e = routeHistory.pop();
-  return !!e && ((activeRouteParams = e.params), renderRoute(e.name, e.params), !0);
+  if (!e) return !1;
+  activeRouteParams = e.params;
+  routeIsBack = true;
+  try {
+    renderRoute(e.name, e.params);
+  } finally {
+    routeIsBack = false;
+  }
+  return !0;
 }
