@@ -5,6 +5,13 @@ device, not only in theory.
 
 ## 1.1.1
 
+- **Search answers at once.** Before the first search the app downloaded the catalogue
+  one category at a time - about 280 requests, minutes of "Preparing…", and started over
+  if any one failed. It now fetches all series, all films and all channels in three
+  requests (series first), and builds the index in the background 15 s after Home opens,
+  so by the time Search is open it is ready: "mobland", "جسور" and "stitch" each show
+  results in under a second on the TV. A provider that refuses the all-at-once request
+  still gets the category-by-category walk.
 - **Back to Home is instant.** Coming back from a series, a film or any page opened from
   Home rebuilt the whole page: every category row was written out again one after
   another and fetched from the provider again. Home is now kept while you are away and

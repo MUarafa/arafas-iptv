@@ -227,6 +227,7 @@ import {
     seriesCategories: () => ye,
     seriesInfo: () => Te,
     seriesList: () => Se,
+    allStreams: () => allStreams,
     shortEpg: () => Le,
     vodCategories: () => ve,
     vodStreams: () => Ce,
@@ -867,6 +868,14 @@ import {
         valid: Array.isArray,
       },
     );
+  }
+  /** Every channel, film or series in one request (no category_id): what search needs. */
+  function allStreams(kind) {
+    let action = { live: "get_live_streams", vod: "get_vod_streams", series: "get_series" }[kind],
+      map = { live: be, vod: we, series: xe }[kind];
+    return runAsync(null, null, function* () {
+      return expectList(yield playerApi(action, {}), action).map(map);
+    });
   }
   function _e(e) {
     return cached("movieinfo:" + e, WEEK_MS, () =>
@@ -3664,7 +3673,10 @@ import {
                 (showToast(translate("details.offline")),
                 setTimeout(() => t || loadRows(failed), 1e4));
             });
-          })());
+          })(),
+          // Build the search index once Home has settled, so Search answers at once
+          // instead of saying "Preparing…" while the whole catalogue downloads.
+          setTimeout(() => t || wr().catch(() => {}), 15e3));
       },
       // Leaving Home only sets it aside (see homeRoute); destroy() is the real teardown.
       unmount() {
@@ -5646,14 +5658,30 @@ import {
   function br() {
     return vr;
   }
+  // A whole catalogue in one request where the provider allows it: category by category
+  // was hundreds of requests (a minute of "Preparing…", and enough to trip a provider's
+  // flood protection). Anything else falls back to walking the categories.
+  function catalogue(categories, streams, kind) {
+    let bulk = activeAdapter().allStreams;
+    if (!bulk) return gr(categories, streams);
+    return runAsync(null, null, function* () {
+      let cats = yield categories(),
+        names = Object.create(null);
+      for (let c of cats) names[c.id] = c.name;
+      let items = yield bulk(kind);
+      for (let x of items) x.categoryName || (x.categoryName = names[x.categoryId] || "");
+      return ((items.partial = !1), items);
+    }).catch(() => gr(categories, streams));
+  }
   function wr() {
     return vr
       ? Promise.resolve(vr)
       : yr ||
           (yr = runAsync(null, null, function* () {
-            let e = yield gr(liveCategories, liveStreams),
-              t = yield gr(vodCategories, vodStreams),
-              n = yield gr(seriesCategories, Ht),
+            // Series and films first: they are what people search for.
+            let n = yield catalogue(seriesCategories, Ht, "series"),
+              t = yield catalogue(vodCategories, vodStreams, "vod"),
+              e = yield catalogue(liveCategories, liveStreams, "live"),
               index = {
                 live: fr(e),
                 movies: fr(t),
