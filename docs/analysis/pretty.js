@@ -1182,7 +1182,7 @@
   function _i(e2, t2) {
     return ki.test(e2.genre || "") || Ci.test(t2 || "");
   }
-  var Ti = [/box office/i, /2026/i, /2025/i, /netflix/i, /imdb/i, /pure movies/i];
+  var Ti = [/box office/i, /2026/i, /2025/i, /imdb/i, /pure movies/i];
   function Li(e2) {
     let t2 = e2.slice();
     for (let e3 = t2.length - 1; e3 > 0; e3--) {
@@ -2306,7 +2306,7 @@
     function s2() {
       r(t2);
       let e3 = Z();
-      t2.appendChild(n2("language", sn("settings.language"), sn("settings.languageDetail"), (Qt.filter((e4) => e4.code === nn())[0] || Qt[0]).label)), t2.appendChild(n2("preferLowerBitrate", "Cap quality at FHD", "4K streams rebuffer on this connection. Off lets 4K play when a channel offers it.", e3.preferLowerBitrate ? sn("settings.on") : sn("settings.off"))), t2.appendChild(n2("liveFormat", "Live stream format", "Raw TS starts about a second faster than HLS on this TV.", "ts" === e3.liveFormat ? "TS (faster)" : "HLS")), t2.appendChild(n2("heroTeaser", "Play previews on the home spotlight", "Plays ~20s of each film. Only while the spotlight is focused, but it uses the account\u2019s single connection while it does.", e3.heroTeaser ? sn("settings.on") : sn("settings.off"))), t2.appendChild(n2("heroTeaserSound", "Spotlight sound", "Plays the preview with sound, the way Netflix\u2019s billboard does.", e3.heroTeaserSound ? sn("settings.on") : sn("settings.off"))), t2.appendChild(n2("showChannelNumbers", "Show channel numbers", "Displays the portal\u2019s channel number beside each channel.", e3.showChannelNumbers ? sn("settings.on") : sn("settings.off"))), t2.appendChild(n2("clearCache", "Clear cached lists", "Forces a fresh fetch of categories and listings.", "")), t2.appendChild(n2("signOut", "Sign out", "Forgets the portal credentials on this TV.", ""));
+      t2.appendChild(n2("language", sn("settings.language"), sn("settings.languageDetail"), (Qt.filter((e4) => e4.code === nn())[0] || Qt[0]).label)), t2.appendChild(n2("preferLowerBitrate", "Cap quality at FHD", "4K streams rebuffer on this connection. Off lets 4K play when a channel offers it.", e3.preferLowerBitrate ? sn("settings.on") : sn("settings.off"))), t2.appendChild(n2("liveFormat", "Live stream format", "Raw TS starts about a second faster than HLS on this TV.", "ts" === e3.liveFormat ? "TS (faster)" : "HLS")), t2.appendChild(n2("heroTeaser", "Play previews on the home spotlight", "Plays ~20s of each film. Only while the spotlight is focused, but it uses the account\u2019s single connection while it does.", e3.heroTeaser ? sn("settings.on") : sn("settings.off"))), t2.appendChild(n2("heroTeaserSound", "Spotlight sound", "Plays the preview with sound.", e3.heroTeaserSound ? sn("settings.on") : sn("settings.off"))), t2.appendChild(n2("showChannelNumbers", "Show channel numbers", "Displays the portal\u2019s channel number beside each channel.", e3.showChannelNumbers ? sn("settings.on") : sn("settings.off"))), t2.appendChild(n2("clearCache", "Clear cached lists", "Forces a fresh fetch of categories and listings.", "")), t2.appendChild(n2("signOut", "Sign out", "Forgets the portal credentials on this TV.", ""));
     }
     return e2.add(t2), t2.addEventListener("focus-activate", (e3) => {
       let t3 = e3.target.closest(".settings-row");

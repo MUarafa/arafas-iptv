@@ -3,6 +3,8 @@
 #
 #   ./build.sh                 -> just build
 #   ./build.sh install         -> build, then install + launch on every TV set up in ares
+#   ./build.sh store           -> the LG Content Store build: no accounts from secrets/,
+#                                 checked to hold none, written as dist/store/*.ipk
 #
 # On the machine whose toolchain lives on D: (no Node on C:, no nvm) that toolchain is
 # used; anywhere else the Node, ares CLI and device list already on PATH/HOME are used.
@@ -47,8 +49,12 @@ STAGE=$(mktemp -d)
 trap 'rm -rf "$STAGE"' EXIT
 cp -r app "$STAGE/app"
 
+# The store build is what strangers install: it ships no account at all.
+STORE=""
+[ "${1:-}" = "store" ] && STORE=1
+
 # secrets/accounts.json (the account list, seeded once on a TV with no saved accounts).
-if [ -f secrets/accounts.json ]; then
+if [ -z "$STORE" ] && [ -f secrets/accounts.json ]; then
   node -e '
     const fs = require("fs");
     const list = JSON.parse(fs.readFileSync("secrets/accounts.json", "utf8"));
@@ -63,7 +69,7 @@ if [ -f secrets/accounts.json ]; then
 fi
 
 # secrets/account.json (older single-account defaults), still honoured if present.
-if [ -f secrets/account.json ]; then
+if [ -z "$STORE" ] && [ -f secrets/account.json ]; then
   node -e '
     const fs=require("fs");
     const a=JSON.parse(fs.readFileSync("secrets/account.json","utf8"));
@@ -77,11 +83,22 @@ fi
 
 node --check "$STAGE/app/bundle.js" || exit 1
 
+if [ -n "$STORE" ]; then
+  node tools/check-no-accounts.mjs "$STAGE/app" || exit 1
+fi
+
 rm -f ./*.ipk
 ares-package "$STAGE/app" -o . || exit 1
 IPK=$(ls -t ./*.ipk 2>/dev/null | head -1)
 [ -n "$IPK" ] || { echo "no ipk produced" >&2; exit 1; }
 echo "built: $IPK"
+
+if [ -n "$STORE" ]; then
+  mkdir -p dist/store
+  mv "$IPK" dist/store/
+  echo "store package: dist/store/$(basename "$IPK")"
+  exit 0
+fi
 
 if [ "${1:-}" = "install" ]; then
   for tv in "${TVS[@]}"; do

@@ -4,6 +4,9 @@
 #   platforms/tizen/build.sh                   -> dist/tizen/ArafasIPTV.wgt
 #   platforms/tizen/build.sh install 192.168.1.5
 #                                              -> build, connect, install and launch on that TV
+#   platforms/tizen/build.sh store             -> the Samsung Seller Office build: no accounts
+#                                                 from secrets/, signed with $TIZEN_PROFILE
+#                                                 (use the distributor profile for the store)
 #
 # Needs Tizen Studio (the CLI is enough) with the Samsung TV extensions, and a Samsung
 # certificate profile created in its Certificate Manager (default profile name: "arafas").
@@ -29,7 +32,7 @@ cp platforms/tizen/config.xml "$OUT/app/config.xml"
 
 # Accounts to ship with this local build (secrets/accounts.json, never committed): injected
 # into the packaged copy only, so the working tree never holds them.
-if [ -f secrets/accounts.json ]; then
+if [ "${1:-}" != "store" ] && [ -f secrets/accounts.json ]; then
   node -e '
     const fs = require("fs");
     const list = JSON.parse(fs.readFileSync("secrets/accounts.json", "utf8"));
@@ -43,12 +46,23 @@ if [ -f secrets/accounts.json ]; then
   ' "$OUT/app/bundle.js"
 fi
 
+if [ "${1:-}" = "store" ]; then
+  node tools/check-no-accounts.mjs "$OUT/app"
+fi
+
 win() { cygpath -w "$1"; }
 cmd //c "$(win "$TIZEN")" package -t wgt -s "$PROFILE" -- "$(win "$OUT/app")"
 WGT=$(ls -t "$OUT"/app/*.wgt 2>/dev/null | head -1)
 [ -n "$WGT" ] || { echo "no .wgt produced" >&2; exit 1; }
 mv "$WGT" "$OUT/ArafasIPTV.wgt"
 echo "built: $OUT/ArafasIPTV.wgt"
+
+if [ "${1:-}" = "store" ]; then
+  VERSION=$(sed -n 's/^ *id="[^"]*" version="\([^"]*\)".*/\1/p' platforms/tizen/config.xml | head -1)
+  mkdir -p dist/store
+  cp "$OUT/ArafasIPTV.wgt" "dist/store/ArafasIPTV_${VERSION}.wgt"
+  echo "store package: dist/store/ArafasIPTV_${VERSION}.wgt"
+fi
 
 if [ "${1:-}" = "install" ]; then
   TV="${2:?TV IP address required}"

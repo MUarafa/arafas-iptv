@@ -2264,6 +2264,40 @@ import {
       .concat(s.sort(l))
       .slice(0, n || 6);
   }
+  /** The input the TV's own keyboard is typing into (one made editable for it), or null. */
+  function nativeTypingInput() {
+    let a = document.activeElement;
+    return a && "INPUT" === a.tagName && !a.readOnly ? a : null;
+  }
+  /** "host:port" is enough: a provider's address without a scheme is plain http. */
+  function withScheme(url) {
+    let s = String(url || "").trim();
+    return !s || /^[a-z][a-z0-9+.-]*:\/\//i.test(s) ? s : "http://" + s;
+  }
+  /** The full link a provider sends ("http://host:port/get.php?username=…&password=…",
+   *  or ".../player_api.php?…", or ".../live/user/pass/1.ts") holds all three fields. */
+  function splitXtreamLink(text) {
+    let s = withScheme(text),
+      m = /^([a-z]+:\/\/[^\/?#\s]+)(\/[^?#]*)?(\?[^#]*)?/i.exec(s);
+    if (!m) return null;
+    let q = m[3] || "",
+      get = (k) => {
+        let r = new RegExp("[?&]" + k + "=([^&]*)", "i").exec(q);
+        if (!r) return "";
+        try {
+          return decodeURIComponent(r[1].replace(/\+/g, " "));
+        } catch (e) {
+          return r[1];
+        }
+      },
+      user = get("username"),
+      pass = get("password");
+    if (!user || !pass) {
+      let p = /^\/(?:live|movie|series)\/([^\/]+)\/([^\/]+)\//i.exec(m[2] || "");
+      p && ((user = decodeURIComponent(p[1])), (pass = decodeURIComponent(p[2])));
+    }
+    return user && pass ? { url: m[1], username: user, password: pass } : null;
+  }
   var $n = ["@gmail.com", "@hotmail.com", "@yahoo.com", "@outlook.com", "@icloud.com"];
   var Qn = ["http://", "https://", ".com", ".net", ".tv", ":8080", ":80", ":2052"];
   var Yn = [
@@ -2459,8 +2493,47 @@ import {
       ),
       k = createElement("div", {
         class: "login-brand",
+      }),
+      typeHint = createElement("p", {
+        class: "login-type-hint",
+        hidden: "hidden",
+        text: translate("welcome.typeHint").replace(
+          "{app}",
+          window.tizen ? "SmartThings" : "LG ThinQ",
+        ),
       });
     k.appendChild(un(72));
+    // OK on a field hands it to the TV's own keyboard: voice, a Magic Remote pointer, or the
+    // phone (LG ThinQ / SmartThings type straight into it). The keys below stay for remotes
+    // that have none of that.
+    function typeNatively(inp) {
+      inp.readOnly = !1;
+      inp.focus();
+      try {
+        inp.setSelectionRange(inp.value.length, inp.value.length);
+      } catch (e) {}
+    }
+    function doneTyping(inp) {
+      if (inp.readOnly) return;
+      ((inp.readOnly = !0), inp.blur());
+      let link = inp === u ? splitXtreamLink(u.value) : null;
+      link && ((u.value = link.url), (c.value = link.username), (d.value = link.password));
+      (g.setTarget(inp), focusElement(inp, { exact: !0 }));
+    }
+    for (let inp of [u, c, d, m]) {
+      inp.addEventListener("blur", () => doneTyping(inp));
+      inp.addEventListener("keydown", (e) => {
+        let n = normalizeKey(e.keyCode);
+        // Enter, Back/Escape and the Tizen IME's Done (65376) / Cancel (65385) end typing.
+        (13 === n || 461 === n || 27 === n || 65376 === n || 65385 === n) &&
+          (e.preventDefault(), e.stopPropagation(), doneTyping(inp));
+      });
+    }
+    // webOS says when its keyboard is put away (its own Back or Done).
+    document.addEventListener("keyboardStateChange", (e) => {
+      let a = nativeTypingInput();
+      e && e.detail && !e.detail.visibility && a && S.contains(a) && doneTyping(a);
+    });
     let C = createElement(
         "div",
         {
@@ -2475,6 +2548,7 @@ import {
           l,
           w,
           x,
+          typeHint,
           p,
           a,
           b,
@@ -2493,6 +2567,7 @@ import {
         (l.hidden = !1),
         (w.hidden = !0),
         (x.hidden = !0),
+        (typeHint.hidden = !0),
         (p.hidden = !0),
         (b.hidden = !0),
         focusElement(l.querySelector(".welcome-option")));
@@ -2568,6 +2643,7 @@ import {
                   (l.hidden = !0),
                   (w.hidden = "xtream" !== e),
                   (x.hidden = "m3u" !== e),
+                  (typeHint.hidden = !1),
                   (p.hidden = !1),
                   (b.hidden = !1),
                   (h.textContent = translate("welcome.signIn")));
@@ -2578,7 +2654,9 @@ import {
           e.target === h
             ? (function () {
                 if ("xtream" === s) {
-                  let e = u.value.trim(),
+                  let link = splitXtreamLink(u.value);
+                  link && ((u.value = link.url), (c.value = link.username), (d.value = link.password));
+                  let e = withScheme(u.value),
                     t = c.value.trim(),
                     n = d.value.trim();
                   return e && t && n
@@ -2590,7 +2668,7 @@ import {
                     : void (a.textContent = translate("welcome.fillAll"));
                 }
                 if ("m3u" === s) {
-                  let e = m.value.trim();
+                  let e = withScheme(m.value);
                   if (!e) return void (a.textContent = translate("welcome.enterPlaylist"));
                   T("m3u", {
                     url: e,
@@ -2601,7 +2679,7 @@ import {
               })()
             : e.target === f
               ? _()
-              : "INPUT" === e.target.tagName && g.setTarget(e.target);
+              : "INPUT" === e.target.tagName && (g.setTarget(e.target), typeNatively(e.target));
       }),
       {
         mount(e) {
@@ -3084,7 +3162,7 @@ import {
   function _i(e, t) {
     return ki.test(e.genre || "") || Ci.test(t || "");
   }
-  var Ti = [/box office/i, /2026/i, /2025/i, /netflix/i, /imdb/i, /pure movies/i];
+  var Ti = [/box office/i, /2026/i, /2025/i, /imdb/i, /pure movies/i];
   function Li(e) {
     let t = e.slice();
     for (let e = t.length - 1; e > 0; e--) {
@@ -3812,7 +3890,7 @@ import {
       resumeAt: resumeAt || 0,
     };
   }
-  // Netflix-style scrubbing: a tap moves 10 s; holding the key speeds up the longer it is
+  // Accelerating scrubbing: a tap moves 10 s; holding the key speeds up the longer it is
   // held, so a long jump takes a couple of seconds of holding, not dozens of presses.
   function seekStep(heldMs, duration) {
     let step = heldMs < 1e3 ? 10 : heldMs < 2e3 ? 30 : heldMs < 3e3 ? 60 : 120;
@@ -6952,7 +7030,7 @@ import {
           n(
             "heroTeaserSound",
             "Spotlight sound",
-            "Plays the preview with sound, the way Netflix’s billboard does.",
+            "Plays the preview with sound.",
             e.heroTeaserSound ? translate("settings.on") : translate("settings.off"),
           ),
         ),
@@ -7494,6 +7572,13 @@ import {
         let n = normalizeKey(e.keyCode),
           at = Date.now();
         lastInputAt = at;
+        // The TV's keyboard is typing into a field: its keys (Delete, the caret's Left and
+        // Right) are its own. Up or Down leaves the field and moves on as usual.
+        let typing = nativeTypingInput();
+        if (typing) {
+          if (n !== KEY_UP && n !== KEY_DOWN) return;
+          typing.blur();
+        }
         // One press, one action: the same key again inside 50 ms is the remote echoing
         // itself, not the viewer pressing twice - for arrows, OK and Back alike.
         if (n === lastDirKey && at - lastDirAt < 50) return void e.preventDefault();

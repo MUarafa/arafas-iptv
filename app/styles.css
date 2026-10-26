@@ -187,7 +187,7 @@ html, body {
 /* =================================== Hero ==================================== */
 
 /*
- * Full-height billboard, the way Netflix's is: the artwork owns the screen and
+ * Full-height billboard: the artwork owns the screen and
  * the first row of cards sits just below the fold, so pressing down reveals it.
  * It bleeds left under the content inset and right to the screen edge.
  */
@@ -1023,6 +1023,7 @@ html, body {
 .kb-key-submit.focused { background: var(--accent-hi); color: #fff; }
 
 .welcome-keyboard { margin-top: 30px; }
+.login-type-hint { margin: 18px 0 0; max-width: 780px; font-size: 20px; line-height: 1.45; color: var(--text-dim, #bbb); }
 .welcome-keyboard .keyboard { width: 780px; }
 .welcome-keyboard .kb-key { height: 62px; font-size: 24px; line-height: 62px; }
 .welcome-keyboard .kb-key-wide { min-width: 150px; font-size: 20px; }

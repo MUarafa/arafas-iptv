@@ -3,6 +3,18 @@
 All versions are what actually ran on real LG TVs; every fix below was verified on the
 device, not only in theory.
 
+## 1.1.2
+
+- **Typing the account is quick on any remote.** OK on a field of the Xtream or M3U form
+  opens the TV's own keyboard: voice, the Magic Remote pointer, or the phone (LG ThinQ /
+  SmartThings type straight into it). The full link a provider sends
+  (`get.php?username=…&password=…`, `player_api.php?…` or a `/live/user/pass/` stream
+  link) fills server, username and password at once, and `http://` may be left out. The
+  arrow-key keyboard stays for remotes with none of that.
+- **Store builds.** `./build.sh store` (and `platforms/tizen/build.sh store`) package the
+  app with no account in it, and refuse to if any account detail from `secrets/` is found
+  inside. What the stores need is in `docs/STORE.md`.
+
 ## 1.1.1
 
 - **Search answers at once.** Before the first search the app downloaded the catalogue
