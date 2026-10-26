@@ -2,7 +2,7 @@
 // allows ONE connection - the case where a background stream can cost the viewer the
 // title they actually press Play on.
 
-import { signedIn } from "../lib.mjs";
+import { signedIn, sleep } from "../lib.mjs";
 
 const ONE = { maxConnections: 1, releaseDelayMs: 2000 };
 
@@ -36,7 +36,10 @@ export default [
           started = waited;
           break;
         }
+        // The portal delay is real time and the clock is virtual: let real time pass too,
+        // or a busy page can run through 20 virtual seconds before the 1.5 s answer lands.
         await app.tick(500);
+        await sleep(100);
       }
       let titles = await app.eval("document.querySelectorAll('.hero-dot').length");
       note.push(`teaser playing ${started} ms (virtual) after boot, with ${titles} title(s) loaded so far`);

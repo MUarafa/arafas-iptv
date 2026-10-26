@@ -53,6 +53,7 @@ import {
   KEY_BACKSPACE,
   normalizeKey,
   registerTvKeys,
+  exitApp,
   KEY_BLUE,
   KEY_CHANNEL_DOWN,
   KEY_CHANNEL_UP,
@@ -582,7 +583,40 @@ import {
     let e = requireCredentials();
     return encodeURIComponent(e.username) + "/" + encodeURIComponent(e.password);
   }
+  /** The loading ring: shown while a request the viewer is waiting on - one started within
+   *  a second of a key press, click or launch - is still unanswered after 400 ms. Requests
+   *  the app makes on its own later (the channel index, background catalogue) do not show it. */
+  var loadingCount = 0,
+    loadingTimer = null,
+    loadingNode = null;
+  function trackLoad(p) {
+    if (Date.now() - lastInputAt > 1e3) return p;
+    loadingCount++;
+    loadingTimer ||
+      (loadingTimer = setTimeout(() => {
+        loadingTimer = null;
+        if (!loadingCount) return;
+        loadingNode ||
+          ((loadingNode = createElement("div", { class: "loading-indicator" })),
+          document.body.appendChild(loadingNode));
+        loadingNode.classList.add("visible");
+      }, 400));
+    let done = () => {
+      --loadingCount ||
+        (loadingTimer && (clearTimeout(loadingTimer), (loadingTimer = null)),
+        loadingNode && loadingNode.classList.remove("visible"));
+    };
+    return p.then(
+      (r) => (done(), r),
+      (e) => {
+        throw (done(), e);
+      },
+    );
+  }
   function playerApi(e, t) {
+    return trackLoad(playerApiRequest(e, t));
+  }
+  function playerApiRequest(e, t) {
     return runAsync(this, null, function* () {
       let n = new AbortController(),
         i = setTimeout(() => n.abort(), 2e4);
@@ -650,9 +684,9 @@ import {
   function fetchWithTimeout(url, ms) {
     let c = new AbortController(),
       timer = setTimeout(() => c.abort(), ms || 3e4);
-    return fetch(url, {
+    return trackLoad(fetch(url, {
       signal: c.signal,
-    }).then(
+    })).then(
       (r) => (clearTimeout(timer), r),
       (e) => {
         throw (clearTimeout(timer), e);
@@ -2561,8 +2595,16 @@ import {
         },
         [C],
       );
+    // The form with its keyboard is taller than the screen: slide the panel so the focused
+    // field or key stays in view.
+    let panelShift = 0;
+    C.addEventListener("focus-enter", (e) => {
+      let r = e.target.getBoundingClientRect(),
+        next = panelShift + (r.top < 40 ? 40 - r.top : r.bottom > 1040 ? 1040 - r.bottom : 0);
+      next !== panelShift && ((panelShift = next), (C.style.transform = "translate3d(0," + next + "px,0)"));
+    });
     function _() {
-      ((s = null),
+      ((panelShift = 0), (C.style.transform = ""), (s = null),
         (a.textContent = ""),
         (l.hidden = !1),
         (w.hidden = !0),
@@ -4451,13 +4493,16 @@ import {
       z = createElement("div", {
         class: "player-message",
       }),
+      busyRing = createElement("div", {
+        class: "loading-indicator player-busy",
+      }),
       B = createElement(
         "div",
         {
           class: "player",
           "data-focus-trap": "",
         },
-        [s, z, D, K],
+        [s, z, busyRing, D, K],
       );
     function V() {
       (K.classList.add("visible"), l && clearTimeout(l), (l = setTimeout(W, 4500)));
@@ -4467,6 +4512,10 @@ import {
     }
     function J(e, t) {
       ((z.textContent = t || ""), z.classList.toggle("visible", !!t));
+    }
+    /** The loading ring, while the stream opens, buffers or reconnects. */
+    function busy(on) {
+      busyRing.classList.toggle("visible", !!on);
     }
     function H() {
       T.classList.toggle("active", isFavourite(t));
@@ -4488,7 +4537,7 @@ import {
           try {
             a.stop();
           } catch (e) {}
-          J(0, translate("player.providerBlocked"));
+          (J(0, translate("player.providerBlocked")), busy(!1));
           return;
         }
       }
@@ -4770,10 +4819,10 @@ import {
       return [i].concat(r.filter((e) => e.id !== i.id)).slice(0, 6);
     }
     (a.on("loading", () => {
-      J(0, "");
+      (J(0, ""), busy(!0));
     }),
       a.on("waiting-for-slot", () => {
-        J(0, translate("welcome.connecting"));
+        (J(0, translate("welcome.connecting")), busy(!0));
       }),
       a.on("resume-failed", (x) => {
         // The file would not jump to the saved place: until the viewer seeks, nothing
@@ -4782,6 +4831,7 @@ import {
       }),
       a.on("playing", (e) => {
         (J(0, ""),
+          busy(!1),
           n && (nr = t),
           (_.textContent = "❚❚"),
           (b.textContent = e.source && e.source.quality ? e.source.quality : ""),
@@ -4789,7 +4839,7 @@ import {
           V());
       }),
       a.on("progress", () => {
-        J(0, "");
+        (J(0, ""), busy(!1));
         // The provider's short notice clip "plays" too; none of it counts as watching.
         if (a.duration > 0 && a.duration < 90) return;
         // "Sustained" means progress without a gap: a reload that jumps to the resume point
@@ -4807,14 +4857,14 @@ import {
           ((a.__pos = a.position), (a.__dur = Math.max(a.__dur || 0, a.duration || 0)));
       }),
       a.on("recovered", () => {
-        J(0, "");
+        (J(0, ""), busy(!1));
       }),
       a.on("recovering", () => {
-        J(0, "");
+        (J(0, ""), busy(!0));
       }),
       a.on("buffering", (e) => {
         if (e && e.terminal) return void __lr(__pos());
-        a.paused || J(0, "");
+        a.paused || (J(0, ""), busy(!0));
       }),
       a.on("source-failed", () => {
         J(0, "");
@@ -4823,7 +4873,7 @@ import {
         e.to && e.to.quality && (b.textContent = e.to.quality);
       }),
       a.on("exhausted", () => {
-        J(0, "");
+        (J(0, ""), busy(!1));
         __lr(__pos());
       }),
       a.on("ended", () => {
@@ -4944,7 +4994,7 @@ import {
       // because something played once long ago - or a dead line would retry forever.
       ((a.__rt = (a.__rt || 0) + 1), (a.__retrying = !0), (a.__since = 0));
       if (a.__rt > 3) {
-        J(0, translate(n ? "player.unavailable" : "player.titleUnavailable"));
+        (J(0, translate(n ? "player.unavailable" : "player.titleUnavailable")), busy(!1));
         return;
       }
       J(0, translate("welcome.connecting"));
@@ -4960,7 +5010,7 @@ import {
             gate: !noGate && (n ? "live" : !0),
           });
         } catch (e) {
-          J(0, translate(n ? "player.unavailable" : "player.titleUnavailable"));
+          (J(0, translate(n ? "player.unavailable" : "player.titleUnavailable")), busy(!1));
         }
       }, 600);
     }
@@ -7561,6 +7611,7 @@ import {
             t && t !== focusedEl && focusElement(t, { exact: !0 });
           }),
           document.addEventListener("click", (e) => {
+            lastInputAt = Date.now();
             let t = target(e);
             t &&
               (t !== focusedEl && focusElement(t, { exact: !0 }),
@@ -7617,7 +7668,15 @@ import {
           );
         if (isBackKey(n)) {
           if (!goBack()) {
-            focusElement(t.button(currentRoute()) || t.button("home"), { exact: !0 });
+            // Back climbs out one level at a time: the content to the menu, another section
+            // to Home, and Home (or the first-run welcome) out of the app, as webOS 23+ asks.
+            let route = currentRoute(),
+              b = t.button(route) || t.button("home");
+            focusedEl !== b
+              ? focusElement(b, { exact: !0 })
+              : "home" === route || ("welcome" === route && "free" !== sourceKind() && null === readCredentials())
+                ? exitApp()
+                : (navigateRoot("home", {}), focusElement(t.button("home"), { exact: !0 }));
           }
           e.preventDefault();
         }

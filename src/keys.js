@@ -125,3 +125,13 @@ export function registerTvKeys() {
     });
   } catch (e) {}
 }
+
+/** Leaves the app for the TV's launcher: webOS's platformBack, Tizen's exit, else close. */
+export function exitApp() {
+  try {
+    if (window.PalmSystem && window.PalmSystem.platformBack) return void window.PalmSystem.platformBack();
+    var app = window.tizen && window.tizen.application;
+    if (app) return void app.getCurrentApplication().exit();
+  } catch (e) {}
+  window.close();
+}

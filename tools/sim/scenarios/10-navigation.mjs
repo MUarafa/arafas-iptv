@@ -370,12 +370,22 @@ export default [
         let s = await railTo(app, expect, route);
         s = await press(app, expect, "ok", 800, "OK on " + route);
         expect.eq(s.route, route, "route after OK on " + route);
-        s = await press(app, expect, "back", 300, "Back on " + route);
-        expect(s.inRail, `Back on ${route}: focus should be in the rail, got ${s.cls}`);
-        expect.eq(s.railRoute, route, "Back at a root route focuses its rail item");
-        s = await press(app, expect, "back", 150);
-        s = await press(app, expect, "back", 150);
-        expect.eq(s.railRoute, route, "repeated Back at a root route stays put");
+        // Back climbs: the content (when OK moved focus there) to the rail item, then another
+        // section to Home, then Home out of the app.
+        let exits = await app.eval("__sim.exits");
+        if (!s.inRail) {
+          s = await press(app, expect, "back", 300, "Back on " + route);
+          expect(s.inRail, `Back on ${route}: focus should be in the rail, got ${s.cls}`);
+          expect.eq(s.railRoute, route, "Back at a root route focuses its rail item");
+        }
+        s = await press(app, expect, "back", 800);
+        if (route === "home") {
+          expect.eq(await app.eval("__sim.exits"), exits + 1, "Back on the Home rail item leaves the app");
+        } else {
+          expect.eq(s.route, "home", "Back on a section's rail item returns to Home");
+          expect.eq(s.railRoute, "home", "and focuses the Home rail item");
+          expect.eq(await app.eval("__sim.exits"), exits, "without leaving the app");
+        }
       }
     },
   },
@@ -879,7 +889,9 @@ export default [
       s = await st(app);
       valid(expect, s, "after back spam");
       note.push("back trail: " + trail.join(" "));
-      expect.eq(s.route, "movies", "back spam ends on the root route");
+      expect.eq(s.route, "home", "back spam climbs to Home");
+      expect(s.inRail && s.railRoute === "home", "on the Home rail item");
+      expect((await app.eval("__sim.exits")) > 0, "and then asks webOS to leave the app");
       expect.eq(await app.eval("__sim.connectionCount()"), 0, "open stream connections after leaving the player");
       // Live channel -> player -> back spam
       await railTo(app, expect, "live");
@@ -894,7 +906,7 @@ export default [
       await app.tick(2000);
       s = await st(app);
       valid(expect, s, "after live back spam");
-      expect.eq(s.route, "live", "live back spam ends on Live");
+      expect.eq(s.route, "home", "live back spam climbs to Home");
     },
   },
   {
@@ -908,7 +920,8 @@ export default [
         await app.key("right", 1200);
         for (let i = 0; i < 25; i++) await press(app, expect, "back", 40, `${route} back ${i}`);
         let s = await st(app);
-        expect(s.inRail && s.railRoute === route, `${route}: after back spam focus=${s.inRail ? "rail:" + s.railRoute : s.cls}`);
+        expect(s.inRail && s.railRoute === "home", `${route}: after back spam focus=${s.inRail ? "rail:" + s.railRoute : s.cls}`);
+        expect((await app.eval("__sim.exits")) > 0, `${route}: back spam ends by leaving the app`);
       }
     },
   },

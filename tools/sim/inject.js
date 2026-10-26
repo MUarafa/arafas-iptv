@@ -14,7 +14,14 @@
 (function () {
   "use strict";
   var seed = window.__SIM_SEED__ || {};
-  var sim = (window.__sim = { errors: [], log: [] });
+  var sim = (window.__sim = { errors: [], log: [], exits: 0 });
+
+  // webOS leaves the app through PalmSystem.platformBack; here it is only counted.
+  window.PalmSystem = {
+    platformBack: function () {
+      sim.exits++;
+    },
+  };
 
   // ---------------------------------------------------------------- storage seed
   try {

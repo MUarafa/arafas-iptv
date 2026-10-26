@@ -3,6 +3,19 @@
 All versions are what actually ran on real LG TVs; every fix below was verified on the
 device, not only in theory.
 
+## Unreleased (LG self-check; simulator only, not yet on a TV)
+
+- **Back leaves the app from Home.** Back climbs one level at a time - content to its
+  menu item, another section to Home, Home (or the first-run start screen) out of the app
+  through webOS's `platformBack`, with no exit pop-up - as webOS 23+ asks. Before, Back
+  at the top stayed put forever.
+- **A loading ring.** Shown while a request the viewer is waiting on takes longer than
+  400 ms, and in the player while a stream opens, buffers or reconnects.
+- **Every control at least 75 px, every text at least 20 px.** Menu items, buttons,
+  fields, keyboard keys, category and season buttons grew to 76 px; the seek bar keeps
+  its 8 px track inside a 76 px target. The sign-in form now scrolls with focus instead
+  of running off the bottom of the screen.
+
 ## 1.1.2
 
 - **Typing the account is quick on any remote.** OK on a field of the Xtream or M3U form
