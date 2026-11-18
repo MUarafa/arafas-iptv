@@ -2277,7 +2277,7 @@ import {
         .replace(/[آأإ]/g, "ا")
         .replace(/ة/g, "ه")
         .replace(/ى/g, "ي")
-        .replace(/[^\p{L}\p{N} ]/gu, " ")
+        .replace(/[\u0000-\u002F\u003A-\u0040\u005B-\u0060\u007B-\u00A9\u00AB-\u00B4\u00B6-\u00B9\u00BB-\u00BF\u00D7\u00F7\u060C\u061B\u061F\u066A-\u066D\u06D4\u2000-\u206F\u20A0-\u20CF\u2190-\u2BFF\u3000-\u303F\uFE30-\uFE4F\uFF01-\uFF0F\uFF1A-\uFF20]/g, " ")
         .replace(/\s+/g, " ")
         .trim();
     })(t);
@@ -5642,7 +5642,7 @@ import {
       .replace(/[آأإ]/g, "ا")
       .replace(/ة/g, "ه")
       .replace(/ى/g, "ي")
-      .replace(/[^\p{L}\p{N} ]/gu, " ")
+      .replace(/[\u0000-\u002F\u003A-\u0040\u005B-\u0060\u007B-\u00A9\u00AB-\u00B4\u00B6-\u00B9\u00BB-\u00BF\u00D7\u00F7\u060C\u061B\u061F\u066A-\u066D\u06D4\u2000-\u206F\u20A0-\u20CF\u2190-\u2BFF\u3000-\u303F\uFE30-\uFE4F\uFF01-\uFF0F\uFF1A-\uFF20]/g, " ")
       .replace(/\s+/g, " ")
       .trim();
   }

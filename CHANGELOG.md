@@ -3,7 +3,16 @@
 All versions are what actually ran on real LG TVs; every fix below was verified on the
 device, not only in theory.
 
-## Unreleased (LG self-check; simulator only, not yet on a TV)
+## 1.1.3
+
+- **Search works on webOS 4.x.** The text normaliser used a Unicode property pattern
+  (`\p{L}\p{N}`) that the Chrome 53 engine of webOS 4 cannot run, so Global Search never
+  searched and Free TV search said "Could not load this section." It now strips
+  punctuation and symbols with plain character ranges. Same result on English and Arabic
+  names. Found on a real 55UM7340PVA (webOS 4.10) and verified there: Global Search and
+  Free TV search answer English, Arabic and punctuated queries with no console error.
+
+## Unreleased before 1.1.3 (LG self-check; simulator only, not yet on a TV)
 
 - **Back leaves the app from Home.** Back climbs one level at a time - content to its
   menu item, another section to Home, Home (or the first-run start screen) out of the app
